@@ -16,7 +16,7 @@ with the `.encode()` method. The encoded packet is not prefixed with it's length
 
 ```js
 import { connect } from "net"
-import { Connection, PacketWriter } from "../lib"
+import { Connection, PacketWriter } from "mcproto"
 
 const HOST = "play.hivemc.com"
 
@@ -24,7 +24,7 @@ const socket = connect({ host: HOST, port: 25565 }, async () => {
     const client = new Connection(socket)
 
     client.send(new PacketWriter(0x0).writeVarInt(-1)
-    .writeString(HOST).writeUInt16(socket.remotePort!)
+    .writeString(HOST).writeUInt16(socket.remotePort)
     .writeVarInt(1))
 
     client.send(new PacketWriter(0x0))
