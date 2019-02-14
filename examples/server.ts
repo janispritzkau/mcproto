@@ -1,4 +1,4 @@
-import { createServer } from "net";
+import { createServer } from "net"
 import { Connection, PacketWriter, PacketReader } from "../lib"
 
 createServer(async socket => {

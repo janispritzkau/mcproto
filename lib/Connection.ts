@@ -98,9 +98,10 @@ export class Connection {
         if (!this.socket.writable) return
         const buffer = p instanceof PacketWriter ? p.encode() : p instanceof PacketReader ? p.buffer : p
         this.splitter.write(buffer)
-        const r = p instanceof PacketReader ? p : new PacketReader(buffer)
+        const reader = p instanceof PacketReader ? p : new PacketReader(buffer)
         if (this.state == State.Handshake) {
-            this.state = (r.readVarInt(), r.readString(), r.readUInt16(), r.readVarInt())
+            reader.readVarInt(), reader.readString(), reader.readUInt16()
+            this.state = reader.readVarInt()
         }
     }
 
@@ -159,7 +160,7 @@ export class Connection {
             .writeVarInt(encryptedVerifyToken.length).write(encryptedVerifyToken)
         )
 
-        this.cipher = createCipheriv('aes-128-cfb8', sharedSecret, sharedSecret)
+        this.cipher = createCipheriv("aes-128-cfb8", sharedSecret, sharedSecret)
         this.decipher = createDecipheriv("aes-128-cfb8", sharedSecret, sharedSecret)
         this.socket.unpipe(this.reader), this.socket.pipe(this.decipher).pipe(this.reader)
         this.splitter.unpipe(this.socket), this.splitter.pipe(this.cipher).pipe(this.socket)

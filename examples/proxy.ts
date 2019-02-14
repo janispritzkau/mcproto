@@ -2,7 +2,7 @@ import { createServer, connect } from "net"
 import { Connection, PacketWriter } from "../lib"
 import { readFileSync } from "fs"
 import * as path from "path"
-import { homedir } from "os";
+import { homedir } from "os"
 
 const host = "2b2t.org"
 const port = 25565

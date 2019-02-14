@@ -1,5 +1,5 @@
-import { connect } from "net";
-import { Connection, PacketWriter } from "../lib";
+import { connect } from "net"
+import { Connection, PacketWriter } from "../lib"
 
 const HOST = "eu.mineplex.com"
 
