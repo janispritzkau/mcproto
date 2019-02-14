@@ -1,4 +1,5 @@
 node_modules/
-*.js
-!/*.js
 .vscode
+
+*.d.ts
+*.js
