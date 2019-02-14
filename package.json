@@ -4,6 +4,10 @@
   "description": "Small Minecraft protocol implementation",
   "main": "lib",
   "types": "lib",
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.com/janispritzkau/mc-protocol.git"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
