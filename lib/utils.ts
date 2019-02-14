@@ -1,35 +1,12 @@
-import { readFileSync, writeFileSync } from "fs"
 import fetch from "node-fetch"
 
-interface AuthResponse {
-    accessToken: string
-    selectedProfile: { id: string }
-}
-
-const headers = {
-    'Content-Type': 'application/json'
-}
-
-export async function authenticate(username: string, password: string, noCache = true): Promise<AuthResponse> {
-    let auth
-    try {
-        if (noCache) throw null
-        auth = JSON.parse(readFileSync(".auth_cache.json", "utf-8"))
-    } catch (err) {
-        auth = await fetch("https://authserver.mojang.com/authenticate", {
-            method: "POST", headers, body: JSON.stringify({
-                agent: { name: "minecraft", version: 1 },
-                username, password
-            })
-        }).then(res => res.json())
-        if (!noCache) writeFileSync(".auth_cache.json", JSON.stringify(auth))
-    }
-    return auth
-}
-
-export async function sessionJoin(accessToken: string, selectedProfile: string, serverId: string) {
+export async function joinSession(accessToken: string, selectedProfile: string, serverId: string) {
     let response = await fetch("https://sessionserver.mojang.com/session/minecraft/join", {
-        method: "POST", headers, body: JSON.stringify({
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
             accessToken, selectedProfile, serverId
         })
     })

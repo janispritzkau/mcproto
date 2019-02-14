@@ -1,6 +1,6 @@
 import { encodeVarInt, decodeVarInt } from "./varint"
 import { PacketWriter, PacketReader } from "./packet"
-import { authenticate, sessionJoin, mcPublicKeyToPem, mcHexDigest } from "./utils"
+import { joinSession, mcPublicKeyToPem, mcHexDigest } from "./utils"
 import { randomBytes, publicEncrypt, Cipher, Decipher, createCipheriv, createDecipheriv, createHash } from "crypto"
 import { RSA_PKCS1_PADDING } from "constants"
 import { Writable, Transform } from "stream"
@@ -14,14 +14,20 @@ export enum State {
     Play = 3
 }
 
+interface ConnectionOptions {
+    isServer?: boolean
+    accessToken?: string
+    profile?: string
+}
+
 export class Connection {
     state = State.Handshake
     compressionThreshold = -1
     keepAlive = true
     isServer = false
 
-    username?: string
-    password?: string
+    accessToken?: string
+    profile?: string
 
     nextPacket = new Promise<PacketReader>(res => this.resolvePacket = res)
     onPacket?: (packet: PacketReader) => void
@@ -70,11 +76,11 @@ export class Connection {
         }
     }})
 
-    constructor(public socket: Socket, options?: { isServer?: boolean, username?: string, password?: string }) {
+    constructor(public socket: Socket, options?: ConnectionOptions) {
         if (options) {
-            if (options.isServer != null) this.isServer = options.isServer
-            this.username = options.username
-            this.password = options.password
+            this.isServer = !!options.isServer
+            this.accessToken = options.accessToken
+            this.profile = options.profile
         }
         socket.pipe(this.reader)
         this.splitter.pipe(this.socket)
@@ -139,11 +145,11 @@ export class Connection {
             .digest()
         )
 
-        const auth = await authenticate(this.username!, this.password!)
-        if (!sessionJoin(auth.accessToken, auth.selectedProfile.id, hashedServerId)) {
-            console.log("Session join failed")
+        if (!await joinSession(this.accessToken!, this.profile!, hashedServerId)) {
+            console.error("Couldn't join session! Access token might be invalid")
             return this.socket.end()
         }
+
         const key = mcPublicKeyToPem(publicKey)
         const encryptedSharedKey = publicEncrypt({ key, padding: RSA_PKCS1_PADDING }, sharedSecret)
         const encryptedVerifyToken = publicEncrypt({ key, padding: RSA_PKCS1_PADDING }, verifyToken)
@@ -157,7 +163,5 @@ export class Connection {
         this.decipher = createDecipheriv("aes-128-cfb8", sharedSecret, sharedSecret)
         this.socket.unpipe(this.reader), this.socket.pipe(this.decipher).pipe(this.reader)
         this.splitter.unpipe(this.socket), this.splitter.pipe(this.cipher).pipe(this.socket)
-
-        console.log("enxrpted")
     }
 }
