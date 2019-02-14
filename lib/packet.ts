@@ -16,6 +16,10 @@ export class PacketReader {
         return this.read(this.readVarInt()).toString()
     }
 
+    readJSON() {
+        return JSON.parse(this.readString())
+    }
+
     readBool() {
         return Boolean(this.readUInt8())
     }
@@ -85,6 +89,10 @@ export class PacketWriter {
         const buffer = Buffer.from(string)
         this.writeVarInt(buffer.length).write(buffer)
         return this
+    }
+
+    writeJSON(json: any) {
+        return this.writeString(JSON.stringify(json))
     }
 
     writeBool(bool: boolean) {
