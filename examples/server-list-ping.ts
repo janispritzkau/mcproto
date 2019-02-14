@@ -7,7 +7,7 @@ const socket = connect({ host: HOST, port: 25565 }, async () => {
     const client = new Connection(socket)
 
     client.send(new PacketWriter(0x0)
-        .writeVarInt(404)
+        .writeVarInt(-1)
         .writeString(HOST)
         .writeUInt16(socket.remotePort!)
         .writeVarInt(1)
