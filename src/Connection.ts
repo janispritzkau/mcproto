@@ -103,7 +103,8 @@ export class Connection {
         this.splitter.write(buffer)
         const reader = p instanceof PacketReader ? p : new PacketReader(buffer)
         if (this.state == State.Handshake) {
-            reader.readVarInt(), reader.readString(), reader.readUInt16()
+            this.protocol = reader.readVarInt()
+            reader.readString(), reader.readUInt16()
             this.state = reader.readVarInt()
         }
     }
@@ -131,8 +132,8 @@ export class Connection {
                 else if (packet.id == 0x0) console.log(packet.readString())
             }
         } else if (this.state == State.Play) {
-            if (!this.isServer && this.keepAlive && packet.id == (this.protocol < 345 ? 0x1f : 0x20)) {
-                this.send(new PacketWriter(0xb).write(packet.read(8)))
+            if (this.keepAlive && !this.isServer && packet.id == (this.protocol < 345 ? 0x1f : 0x21)) {
+                this.send(new PacketWriter(this.protocol < 350 ? 0xb : 0xe).write(packet.read(8)))
             }
         }
     }
