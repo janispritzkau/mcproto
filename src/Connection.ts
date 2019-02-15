@@ -26,6 +26,7 @@ export class Connection {
     compressionThreshold = -1
     keepAlive = true
     isServer = false
+    private protocol = -1
 
     accessToken?: string
     profile?: string
@@ -114,7 +115,8 @@ export class Connection {
 
         const packet = new PacketReader(buffer)
         if (this.state == State.Handshake) {
-            this.state = (packet.readVarInt(), packet.readString(), packet.readUInt16(), packet.readVarInt())
+            this.protocol = packet.readVarInt()
+            this.state = (packet.readString(), packet.readUInt16(), packet.readVarInt())
         }
 
         if (this.state == State.Login) {
@@ -129,7 +131,7 @@ export class Connection {
                 else if (packet.id == 0x0) console.log(packet.readString())
             }
         } else if (this.state == State.Play) {
-            if (!this.isServer && packet.id == 0x1f && this.keepAlive) {
+            if (!this.isServer && this.keepAlive && packet.id == (this.protocol < 345 ? 0x1f : 0x20)) {
                 this.send(new PacketWriter(0xb).write(packet.read(8)))
             }
         }
