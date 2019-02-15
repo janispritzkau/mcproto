@@ -3,9 +3,10 @@
         "target": "esnext",
         "module": "commonjs",
         "strict": true,
-        "declaration": true
+        "declaration": true,
+        "outDir": "lib"
     },
-    "exclude": [
-        "node_modules"
+    "include": [
+        "./src"
     ]
 }
