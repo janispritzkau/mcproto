@@ -2,7 +2,8 @@
 
 A small implementation of the Minecraft Protocol written in Typescript.
 It provides a functionality to decode or encode packets and has a `Connection`
-class which keeps track of the connection state, compression and encryption.
+class which keeps track of the connection state, compression and encryption. It
+supports version 1.12.2 and 1.13.2.
 
 This implementation doesn't automatically decode all packets, it does decode
 packets that change the state or type of the connection
