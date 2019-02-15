@@ -18,6 +18,7 @@ interface ConnectionOptions {
     isServer?: boolean
     accessToken?: string
     profile?: string
+    keepAlive?: boolean
 }
 
 export class Connection {
@@ -81,6 +82,7 @@ export class Connection {
             this.isServer = !!options.isServer
             this.accessToken = options.accessToken
             this.profile = options.profile
+            if (options.keepAlive != null) this.keepAlive = options.keepAlive
         }
         socket.pipe(this.reader)
         this.splitter.pipe(this.socket)
@@ -127,7 +129,7 @@ export class Connection {
                 else if (packet.id == 0x0) console.log(packet.readString())
             }
         } else if (this.state == State.Play) {
-            if (!this.isServer && packet.id == 0x1f) {
+            if (!this.isServer && packet.id == 0x1f && this.keepAlive) {
                 this.send(new PacketWriter(0xb).write(packet.read(8)))
             }
         }
