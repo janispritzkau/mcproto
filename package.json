@@ -11,12 +11,16 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["minecraft", "protocol"],
+  "keywords": [
+    "minecraft",
+    "protocol"
+  ],
   "author": "Janis Pritzkau",
   "license": "ISC",
   "devDependencies": {
     "@types/node": "^10.12.24",
     "@types/node-fetch": "^2.1.6",
+    "mc-chat-format": "^0.1.5",
     "typescript": "^3.3.3"
   },
   "dependencies": {
