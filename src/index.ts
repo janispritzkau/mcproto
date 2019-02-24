@@ -1,2 +1,2 @@
 export * from "./packet"
-export * from "./Connection"
+export * from "./connection"
