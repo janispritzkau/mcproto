@@ -23,7 +23,9 @@ interface ConnectionOptions {
 
 export class Connection {
     state = State.Handshake
+    /** Limit on how many bytes a packet has to be at minimum to be compressed */
     compressionThreshold = -1
+    /** Respond to keep alive packets from server */
     keepAlive = true
     isServer = false
     private protocol = -1
@@ -31,9 +33,11 @@ export class Connection {
     accessToken?: string
     profile?: string
 
+    onPacket = (packet: PacketReader) => {}
+    onLogin = (uuid: string, username: string) => {}
+    onDisconnect = (reason: any) => {}
+
     nextPacket = new Promise<PacketReader>(res => this.resolvePacket = res)
-    onPacket?: (packet: PacketReader) => void
-    onLogin?: (uuid: string, username: string) => void
     private resolvePacket!: (packet: PacketReader) => void
 
     private cipher?: Cipher
@@ -97,7 +101,7 @@ export class Connection {
         }
     }
 
-    send(p: Buffer | PacketWriter | PacketReader) {
+    send = (p: Buffer | PacketWriter | PacketReader) => {
         if (!this.socket.writable) return
         const buffer = p instanceof PacketWriter ? p.encode() : p instanceof PacketReader ? p.buffer : p
         this.splitter.write(buffer)
@@ -120,19 +124,18 @@ export class Connection {
             this.state = (packet.readString(), packet.readUInt16(), packet.readVarInt())
         }
 
-        if (this.state == State.Login) {
-            if (!this.isServer) {
-                if (packet.id == 0x1) this.onEncryptionRequest(packet)
-                else if (packet.id == 0x3) this.compressionThreshold = packet.readVarInt()
-                else if (packet.id == 0x2) {
-                    const uuid = packet.readString(), username = packet.readString()
-                    this.state = State.Play
-                    this.onLogin && this.onLogin(uuid, username)
-                }
-                else if (packet.id == 0x0) console.log(packet.readString())
-            }
-        } else if (this.state == State.Play) {
-            if (this.keepAlive && !this.isServer && packet.id == (this.protocol < 345 ? 0x1f : 0x21)) {
+        if (this.isServer) return
+
+        if (this.state == State.Login) switch (packet.id) {
+            case 0x0: this.onDisconnect(packet.readJSON()); break
+            case 0x1: this.onEncryptionRequest(packet); break
+            case 0x2: {
+                this.state = State.Play
+                this.onLogin(packet.readString(), packet.readString())
+            }; break
+            case 0x3: this.compressionThreshold = packet.readVarInt()
+        } else if (this.state == State.Play && this.keepAlive) {
+            if (packet.id == (this.protocol < 345 ? 0x1f : 0x21)) {
                 this.send(new PacketWriter(this.protocol < 350 ? 0xb : 0xe).write(packet.read(8)))
             }
         }
