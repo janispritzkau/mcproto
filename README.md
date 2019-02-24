@@ -5,10 +5,17 @@ It provides a functionality to decode or encode packets and has a `Connection`
 class which keeps track of the connection state, compression and encryption. It
 supports version 1.12.2 and 1.13.2.
 
-This implementation doesn't automatically decode all packets, it does decode
-packets that change the state or type of the connection
-like set compression or encryption request. For reading packets,
-a class `PacketReader` is provided which contains methods for reading common data types.
+`mcproto` aims to be a relatively low level library that only handles connection
+related state. Connection related error handling is done outside of the library on the
+`Socket` class. `mcproto` has some basic event callbacks: `onDisconnect(reason: any)`,
+`onLogin(uuid: string, username: string)`, `onPacket(packet: PacketReader)` which can
+be set on the `Connection` class. Keep in mind that the protocol and packet ids
+can change from version to version.
+
+This implementation doesn't automatically decode all packets, it does only decode
+packets that are related to the connection state like set compression
+or encryption request. For reading packets, the class `PacketReader` is provided
+which contains methods for reading common data types.
 
 Packets are written using the `PacketWriter` class and can be converted to a buffer
 with the `.encode()` method. The encoded packet is not prefixed with it's length.
