@@ -1,16 +1,11 @@
 import { createServer, connect } from "net"
 import { Connection, PacketWriter } from "../lib"
-import { readFileSync } from "fs"
-import { homedir } from "os"
-import * as path from "path"
+import { getProfile } from "./utils"
 
 const host = "2b2t.org"
 const port = 25565
 
-const profiles = JSON.parse(readFileSync(path.resolve(homedir(), ".minecraft/launcher_profiles.json"), "utf-8"))
-const { accessToken, ...account } = profiles.authenticationDatabase[profiles.selectedUser.account]
-const name = account.profiles[profiles.selectedUser.profile].displayName
-const profile = profiles.selectedUser.profile
+const { accessToken, displayName, profile } = getProfile()
 
 createServer(async serverSocket => {
     serverSocket.on("error", err => console.error(err.message))
@@ -31,10 +26,13 @@ createServer(async serverSocket => {
         client.send(new PacketWriter(0x0).writeVarInt(protocol)
         .writeString(host).writeUInt16(port).writeVarInt(nextState))
 
-        client.send(nextState == 2 ? new PacketWriter(0x0).writeString(name) : new PacketWriter(0x0))
+        client.send(nextState == 2 ? new PacketWriter(0x0).writeString(displayName) : new PacketWriter(0x0))
 
         if (nextState == 2) {
-            const [uuid, username] = await new Promise(res => client.onLogin = (...args) => res(args))
+            const [uuid, username] = await new Promise((res, rej) => {
+                client.onLogin = (...args) => res(args)
+                client.onDisconnect = rej
+            })
             server.send(new PacketWriter(0x2).writeString(uuid).writeString(username))
         }
 
