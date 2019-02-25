@@ -1,5 +1,7 @@
 import { writeVarInt, decodeVarInt } from "./varint"
 
+export type Packet = PacketReader | PacketWriter | Buffer
+
 export class PacketReader {
     id: number
     offset = 0

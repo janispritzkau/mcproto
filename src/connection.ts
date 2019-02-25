@@ -1,5 +1,5 @@
 import { encodeVarInt, decodeVarInt } from "./varint"
-import { PacketWriter, PacketReader } from "./packet"
+import { PacketWriter, PacketReader, Packet } from "./packet"
 import { joinSession, mcPublicKeyToPem, mcHexDigest } from "./utils"
 import { randomBytes, publicEncrypt, Cipher, Decipher, createCipheriv, createDecipheriv, createHash } from "crypto"
 import { RSA_PKCS1_PADDING } from "constants"
@@ -101,7 +101,7 @@ export class Connection {
         }
     }
 
-    send = (p: Buffer | PacketWriter | PacketReader) => {
+    send = (p: Packet) => {
         if (!this.socket.writable) return
         const buffer = p instanceof PacketWriter ? p.encode() : p instanceof PacketReader ? p.buffer : p
         this.splitter.write(buffer)
