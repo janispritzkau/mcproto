@@ -1,9 +1,9 @@
 import { connect } from "net"
-import { chatToText } from "mc-chat-format"
+import * as chat from "mc-chat-format"
 import { Connection, PacketWriter } from "../lib"
 import { getProfile } from "./utils"
 
-const HOST = "2b2t.org"
+const HOST = "eu.mineplex.com"
 const PORT = 25565
 
 const { accessToken, profile, displayName } = getProfile()
@@ -20,8 +20,9 @@ const socket = connect({ host: HOST, port: PORT }, async () => {
 
     client.onPacket = packet => {
         switch (packet.id) {
-            case 0xe: console.log(chatToText(packet.readJSON())); break
-            case 0x1b: console.log("Disconnected:", chatToText(packet.readJSON())); break
+            case 0xe: case 0x1b:
+            console.log(chat.format(packet.readJSON(), { useAnsiCodes: true }))
+            break
             case 0x32: {
                 packet.read(3 * 8 + 2 * 4 + 1) // ignore other stuff
                 const teleportId = packet.readVarInt()

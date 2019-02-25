@@ -20,7 +20,7 @@
   "devDependencies": {
     "@types/node": "^10.12.24",
     "@types/node-fetch": "^2.1.6",
-    "mc-chat-format": "^0.1.5",
+    "mc-chat-format": "^1.0.3",
     "typescript": "^3.3.3"
   },
   "dependencies": {

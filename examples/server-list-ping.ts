@@ -1,5 +1,6 @@
 import { connect } from "net"
 import { Connection, PacketWriter } from "../lib"
+import * as chat from "mc-chat-format"
 
 const HOST = "eu.mineplex.com"
 
@@ -15,7 +16,11 @@ const socket = connect({ host: HOST, port: 25565 }, async () => {
 
     client.send(new PacketWriter(0x0))
 
-    const response = await client.nextPacket
-    console.log(response.readString())
+    const status = (await client.nextPacket).readJSON()
+
+    console.log("\n" + chat.format(status.description, { useAnsiCodes: true }))
+    console.log(`\nVersion: ${status.version.name} (protocol ${status.version.protocol})`)
+    console.log(`Players: ${status.players.online} / ${status.players.max}`)
+
     socket.end()
 })
