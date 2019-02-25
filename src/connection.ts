@@ -36,6 +36,7 @@ export class Connection {
     onPacket = (packet: PacketReader) => {}
     onLogin = (packet: PacketReader) => {}
     onDisconnect = (reason: any) => {}
+    onError?: (error: Error) => void
 
     nextPacket = new Promise<PacketReader>(res => this.resolvePacket = res)
     private resolvePacket!: (packet: PacketReader) => void
@@ -57,7 +58,7 @@ export class Connection {
                 const [len, off] = decodeVarInt(buffer)
                 if (len == 0) this.packetReceived(buffer.slice(off))
                 else zlib.inflate(buffer.slice(off), (err, decompressed) => {
-                    if (err) throw err
+                    if (err) this.handleError(err)
                     this.packetReceived(decompressed)
                 })
             }
@@ -74,7 +75,8 @@ export class Connection {
             if (chunk.length < this.compressionThreshold) {
                 this.splitter.push(Buffer.concat([encodeVarInt(chunk.length + 1), encodeVarInt(0), chunk]))
                 cb()
-            } else zlib.deflate(chunk, (_err, compressed) => {
+            } else zlib.deflate(chunk, (err, compressed) => {
+                if (err) this.handleError(err)
                 const buffer = Buffer.concat([encodeVarInt(compressed.length), compressed])
                 this.splitter.push(Buffer.concat([encodeVarInt(buffer.length), buffer]))
                 cb()
@@ -89,9 +91,9 @@ export class Connection {
             this.profile = options.profile
             if (options.keepAlive != null) this.keepAlive = options.keepAlive
         }
+        socket.setNoDelay(true)
         socket.pipe(this.reader)
-        this.splitter.pipe(this.socket)
-        this.socket.setNoDelay(true)
+        this.splitter.pipe(socket)
     }
 
     async nextPacketWithId(id: number) {
@@ -128,14 +130,22 @@ export class Connection {
 
         if (this.state == State.Login) switch (packet.id) {
             case 0x0: this.onDisconnect(packet.readJSON()); break
-            case 0x1: this.onEncryptionRequest(packet); break
+            case 0x1: this.onEncryptionRequest(packet)
+                .catch(err => this.handleError(err, true)); break
             case 0x2: this.state = State.Play, this.onLogin(packet); break
             case 0x3: this.compressionThreshold = packet.readVarInt()
         } else if (this.state == State.Play && this.keepAlive) {
             if (packet.id == (this.protocol < 345 ? 0x1f : 0x21)) {
-                this.send(new PacketWriter(this.protocol < 350 ? 0xb : 0xe).write(packet.read(8)))
+                this.send(new PacketWriter(this.protocol < 350 ? 0xb : 0xe)
+                .write(packet.read(8)))
             }
         }
+    }
+
+    private handleError = (error: Error, shouldClose = false) => {
+        if (this.onError) this.onError(error)
+        else throw error
+        if (shouldClose) this.socket.end()
     }
 
     private async onEncryptionRequest(req: PacketReader) {

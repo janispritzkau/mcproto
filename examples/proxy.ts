@@ -18,6 +18,7 @@ createServer(async serverSocket => {
         serverSocket.on("close", () => clientSocket.end())
 
         const client = new Connection(clientSocket, { accessToken, profile, keepAlive: false })
+        client.onError = error => console.error(error.message)
 
         const protocol = handshake.readVarInt()
         handshake.readString(), handshake.readInt16()
