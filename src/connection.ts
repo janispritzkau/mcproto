@@ -98,6 +98,13 @@ export class Connection {
         this.splitter.pipe(socket)
     }
 
+    stop() {
+        this.socket.unpipe(this.reader)
+        this.socket.unpipe(this.decipher)
+        this.splitter.unpipe(this.socket)
+        this.splitter.unpipe(this.cipher)
+    }
+
     async nextPacketWithId(id: number) {
         while (true) {
             const packet = await this.nextPacket
