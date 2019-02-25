@@ -53,16 +53,20 @@ export class Connection {
             try { [len, off] = decodeVarInt(this.buffer) } catch (err) { return cb() }
             if (off + len > this.buffer.length) break
             const buffer = this.buffer.slice(off, off + len)
-            if (this.compressionThreshold == -1) this.packetReceived(buffer)
-            else {
-                const [len, off] = decodeVarInt(buffer)
-                if (len == 0) this.packetReceived(buffer.slice(off))
-                else zlib.inflate(buffer.slice(off), (err, decompressed) => {
-                    if (err) this.handleError(err)
-                    this.packetReceived(decompressed)
-                })
+            try {
+                if (this.compressionThreshold == -1) this.packetReceived(buffer)
+                else {
+                    const [len, off] = decodeVarInt(buffer)
+                    if (len == 0) this.packetReceived(buffer.slice(off))
+                    else zlib.inflate(buffer.slice(off), (err, decompressed) => {
+                        if (err) this.handleError(err)
+                        this.packetReceived(decompressed)
+                    })
+                }
+                this.buffer = this.buffer.slice(off + len)
+            } catch (error) {
+                this.handleError(error)
             }
-            this.buffer = this.buffer.slice(off + len)
         }
         return cb()
     }})
@@ -70,18 +74,16 @@ export class Connection {
     private splitter = new Transform({ transform: (chunk: Buffer, _enc, cb) => {
         if (this.compressionThreshold == -1) {
             this.splitter.push(Buffer.concat([encodeVarInt(chunk.length), chunk]))
-            cb()
         } else {
             if (chunk.length < this.compressionThreshold) {
                 this.splitter.push(Buffer.concat([encodeVarInt(chunk.length + 1), encodeVarInt(0), chunk]))
-                cb()
             } else zlib.deflate(chunk, (err, compressed) => {
                 if (err) this.handleError(err)
                 const buffer = Buffer.concat([encodeVarInt(compressed.length), compressed])
                 this.splitter.push(Buffer.concat([encodeVarInt(buffer.length), buffer]))
-                cb()
             })
         }
+        cb()
     }})
 
     constructor(public socket: Socket, options?: ConnectionOptions) {
@@ -121,9 +123,11 @@ export class Connection {
         this.nextPacket = new Promise(res => this.resolvePacket = res)
 
         const packet = new PacketReader(buffer)
+
         if (this.state == State.Handshake) {
             this.protocol = packet.readVarInt()
             this.state = (packet.readString(), packet.readUInt16(), packet.readVarInt())
+            return
         }
 
         if (this.isServer) return
