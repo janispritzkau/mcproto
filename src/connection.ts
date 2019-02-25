@@ -34,7 +34,7 @@ export class Connection {
     profile?: string
 
     onPacket = (packet: PacketReader) => {}
-    onLogin = (uuid: string, username: string) => {}
+    onLogin = (packet: PacketReader) => {}
     onDisconnect = (reason: any) => {}
 
     nextPacket = new Promise<PacketReader>(res => this.resolvePacket = res)
@@ -129,10 +129,7 @@ export class Connection {
         if (this.state == State.Login) switch (packet.id) {
             case 0x0: this.onDisconnect(packet.readJSON()); break
             case 0x1: this.onEncryptionRequest(packet); break
-            case 0x2: {
-                this.state = State.Play
-                this.onLogin(packet.readString(), packet.readString())
-            }; break
+            case 0x2: this.state = State.Play, this.onLogin(packet); break
             case 0x3: this.compressionThreshold = packet.readVarInt()
         } else if (this.state == State.Play && this.keepAlive) {
             if (packet.id == (this.protocol < 345 ? 0x1f : 0x21)) {

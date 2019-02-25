@@ -1,5 +1,5 @@
 import { createServer, connect } from "net"
-import { Connection, PacketWriter } from "../lib"
+import { Connection, PacketWriter, Packet } from "../lib"
 import { getProfile } from "./utils"
 
 const host = "2b2t.org"
@@ -28,16 +28,12 @@ createServer(async serverSocket => {
 
         client.send(nextState == 2 ? new PacketWriter(0x0).writeString(displayName) : new PacketWriter(0x0))
 
-        if (nextState == 2) {
-            const [uuid, username] = await new Promise((res, rej) => {
-                client.onLogin = (...args) => res(args)
-                client.onDisconnect = rej
-            })
-            server.send(new PacketWriter(0x2).writeString(uuid).writeString(username))
-        }
+        if (nextState == 2) server.send(await new Promise<Packet>((res, rej) => {
+            client.onLogin = res, client.onDisconnect = rej
+        }))
 
-        client.onPacket = packet => server.send(packet)
-        server.onPacket = packet => client.send(packet)
+        client.onPacket = server.send
+        server.onPacket = client.send
     })
     clientSocket.on("error", err => console.error(err.message))
 }).listen(25565)
