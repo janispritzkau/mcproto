@@ -2,15 +2,16 @@ import { connect } from "net"
 import { Connection, PacketWriter } from "../lib"
 import * as chat from "mc-chat-format"
 
-const HOST = "eu.mineplex.com"
+const host = process.argv[2] || "eu.mineplex.com"
+const port = +process.argv[3] || 25565
 
-const socket = connect({ host: HOST, port: 25565 }, async () => {
+const socket = connect({ host, port }, async () => {
     const client = new Connection(socket)
 
     client.send(new PacketWriter(0x0)
         .writeVarInt(-1)
-        .writeString(HOST)
-        .writeUInt16(socket.remotePort!)
+        .writeString(host)
+        .writeUInt16(port)
         .writeVarInt(1)
     )
 

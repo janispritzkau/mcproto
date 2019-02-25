@@ -3,20 +3,22 @@ import * as chat from "mc-chat-format"
 import { Connection, PacketWriter } from "../lib"
 import { getProfile } from "./utils"
 
-const HOST = "eu.mineplex.com"
-const PORT = 25565
+const host = process.argv[2] || "eu.mineplex.com"
+const port = +process.argv[3] || 25565
 
 const { accessToken, profile, displayName } = getProfile()
 
-const socket = connect({ host: HOST, port: PORT }, async () => {
+const socket = connect({ host, port }, async () => {
     socket.on("close", () => process.exit())
     const client = new Connection(socket, { accessToken, profile, keepAlive: true })
 
     client.send(new PacketWriter(0x0).writeVarInt(404)
-    .writeString(HOST).writeUInt16(PORT).writeVarInt(2))
+    .writeString(host).writeUInt16(port).writeVarInt(2))
+
     client.send(new PacketWriter(0x0).writeString(displayName))
 
-    await new Promise((res, rej) => (client.onLogin = res, client.onDisconnect = rej))
+    client.onDisconnect = reason => console.log(chat.format(reason))
+    await new Promise(resolve => (client.onLogin = resolve))
 
     client.onPacket = packet => {
         switch (packet.id) {
@@ -27,7 +29,7 @@ const socket = connect({ host: HOST, port: PORT }, async () => {
                 packet.read(3 * 8 + 2 * 4 + 1) // ignore other stuff
                 const teleportId = packet.readVarInt()
                 client.send(new PacketWriter(0x0).writeVarInt(teleportId))
-            }; break
+            }
         }
     }
 
