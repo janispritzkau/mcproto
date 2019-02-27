@@ -11,7 +11,7 @@ createServer(async serverSocket => {
     serverSocket.on("error", err => console.error(err.message))
     const server = new Connection(serverSocket, { isServer: true })
 
-    const handshake = await server.nextPacket
+    const handshake = await server.nextPacket()
 
     const clientSocket = connect({ host, port }, async () => {
         clientSocket.on("close", () => serverSocket.end())

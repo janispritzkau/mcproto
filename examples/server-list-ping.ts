@@ -17,7 +17,7 @@ const socket = connect({ host, port }, async () => {
 
     client.send(new PacketWriter(0x0))
 
-    const status = (await client.nextPacket).readJSON()
+    const status = (await client.nextPacket()).readJSON()
 
     console.log("\n" + chat.format(status.description, { useAnsiCodes: true }))
     console.log(`\nVersion: ${status.version.name} (protocol ${status.version.protocol})`)
