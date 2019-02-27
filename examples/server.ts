@@ -8,7 +8,7 @@ createServer(async socket => {
 
     let packet: PacketReader
 
-    packet = await client.nextPacket
+    packet = await client.nextPacket()
     const protocol = packet.readVarInt()
     packet.readString(), packet.readUInt16()
     const nextState = packet.readVarInt()

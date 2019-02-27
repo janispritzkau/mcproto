@@ -38,8 +38,8 @@ export class Connection {
     onDisconnect = (reason: any) => {}
     onError?: (error: Error) => void
 
-    nextPacket = new Promise<PacketReader>(res => this.resolvePacket = res)
-    private resolvePacket!: (packet: PacketReader) => void
+    private nextCallbacks: Set<() => void> = new Set
+    private packets: Buffer[] = []
 
     private cipher?: Cipher
     private decipher?: Decipher
@@ -49,18 +49,19 @@ export class Connection {
     private reader = new Writable({ write: (chunk, _enc, cb) => {
         this.buffer = Buffer.concat([this.buffer, chunk])
         let len: number, off: number
+        this.packets.length = 0
         while (true) {
-            try { [len, off] = decodeVarInt(this.buffer) } catch (err) { return cb() }
+            try { [len, off] = decodeVarInt(this.buffer) } catch (err) { break }
             if (off + len > this.buffer.length) break
             const buffer = this.buffer.slice(off, off + len)
             try {
-                if (this.compressionThreshold == -1) this.packetReceived(buffer)
+                if (this.compressionThreshold == -1) this.packets.push(buffer)
                 else {
                     const [len, off] = decodeVarInt(buffer)
-                    if (len == 0) this.packetReceived(buffer.slice(off))
+                    if (len == 0) this.packets.push(buffer.slice(off))
                     else zlib.inflate(buffer.slice(off), (err, decompressed) => {
                         if (err) this.handleError(err)
-                        this.packetReceived(decompressed)
+                        this.packets.push(decompressed)
                     })
                 }
                 this.buffer = this.buffer.slice(off + len)
@@ -68,6 +69,7 @@ export class Connection {
                 this.handleError(error)
             }
         }
+        this.packets.forEach(this.packetReceived)
         return cb()
     }})
 
@@ -105,9 +107,17 @@ export class Connection {
         this.splitter.unpipe(this.cipher)
     }
 
+    async nextPacket() {
+        while (true) {
+            const packet = this.packets.shift()!
+            if (packet) return new PacketReader(packet)
+            await new Promise(res => this.nextCallbacks.add(res))
+        }
+    }
+
     async nextPacketWithId(id: number) {
         while (true) {
-            const packet = await this.nextPacket
+            const packet = await this.nextPacket()
             if (packet.id == id) return packet
         }
     }
@@ -124,10 +134,11 @@ export class Connection {
         }
     }
 
-    private packetReceived(buffer: Buffer) {
+    private packetReceived = (buffer: Buffer) => {
+        this.nextCallbacks.forEach(cb => cb())
+        this.nextCallbacks.clear()
+
         this.onPacket && this.onPacket(new PacketReader(buffer))
-        this.resolvePacket(new PacketReader(buffer))
-        this.nextPacket = new Promise(res => this.resolvePacket = res)
 
         const packet = new PacketReader(buffer)
 
