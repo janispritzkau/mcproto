@@ -37,7 +37,7 @@ const socket = connect({ host: HOST, port: 25565 }, async () => {
 
     client.send(new PacketWriter(0x0))
 
-    const response = await client.nextPacket
+    const response = await client.nextPacket()
     console.log(response.readString())
 
     socket.end()
