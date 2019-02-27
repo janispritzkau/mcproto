@@ -28,6 +28,9 @@ export class Connection {
     /** Respond to keep alive packets from server */
     keepAlive = true
     isServer = false
+
+    paused = false
+    destroyed = false
     private protocol = -1
 
     accessToken?: string
@@ -49,7 +52,7 @@ export class Connection {
     private reader = new Writable({ write: (chunk, _enc, cb) => {
         this.buffer = Buffer.concat([this.buffer, chunk])
         let len: number, off: number
-        this.packets.length = 0
+        if (!this.paused) this.packets.length = 0
         while (true) {
             try { [len, off] = decodeVarInt(this.buffer) } catch (err) { break }
             if (off + len > this.buffer.length) break
@@ -69,7 +72,11 @@ export class Connection {
                 this.handleError(error)
             }
         }
-        this.packets.forEach(this.packetReceived)
+        if (!this.paused) {
+            this.nextCallbacks.forEach(cb => cb())
+            this.nextCallbacks.clear()
+            this.packets.forEach(this.packetReceived)
+        }
         return cb()
     }})
 
@@ -88,7 +95,7 @@ export class Connection {
         cb()
     }})
 
-    constructor(public socket: Socket, options?: ConnectionOptions) {
+    constructor(private socket: Socket, options?: ConnectionOptions) {
         if (options) {
             this.isServer = !!options.isServer
             this.accessToken = options.accessToken
@@ -100,7 +107,24 @@ export class Connection {
         this.splitter.pipe(socket)
     }
 
-    stop() {
+    /**
+     * All packets will be saved and processed next time on resume.
+     * Note that you can also pause and resume Node's `net.Socket`.
+     */
+    pause() {
+        this.paused = true
+    }
+
+    /** Process all packets that have been received while being paused. */
+    resume() {
+        this.paused = false
+        this.nextCallbacks.forEach(cb => cb())
+        this.nextCallbacks.clear()
+        this.packets.forEach(this.packetReceived)
+    }
+
+    destroy() {
+        this.destroyed = true
         this.socket.unpipe(this.reader)
         this.socket.unpipe(this.decipher)
         this.splitter.unpipe(this.socket)
@@ -135,10 +159,11 @@ export class Connection {
     }
 
     private packetReceived = (buffer: Buffer) => {
-        this.nextCallbacks.forEach(cb => cb())
-        this.nextCallbacks.clear()
-
-        this.onPacket && this.onPacket(new PacketReader(buffer))
+        if (this.nextCallbacks.size > 0)
+            this.onPacket && this.onPacket(new PacketReader(buffer))
+        else setImmediate(() => {
+            this.onPacket && this.onPacket(new PacketReader(buffer))
+        })
 
         const packet = new PacketReader(buffer)
 
