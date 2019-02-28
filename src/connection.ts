@@ -205,8 +205,7 @@ export class Connection {
         )
 
         if (!await joinSession(this.accessToken!, this.profile!, hashedServerId)) {
-            console.error("Couldn't join session! Access token might be invalid")
-            return this.socket.end()
+            this.handleError(new Error("Invalid access token"), true)
         }
 
         const key = mcPublicKeyToPem(publicKey)
