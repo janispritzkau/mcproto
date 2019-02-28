@@ -49,7 +49,7 @@ export class Connection {
 
     private buffer = Buffer.alloc(0)
 
-    private reader = new Writable({ write: (chunk, _enc, cb) => {
+    private reader = new Writable({ write: async (chunk, _enc, cb) => {
         this.buffer = Buffer.concat([this.buffer, chunk])
         let len: number, off: number
         if (!this.paused) this.packets.length = 0
@@ -58,24 +58,21 @@ export class Connection {
             if (off + len > this.buffer.length) break
             const buffer = this.buffer.slice(off, off + len)
             try {
-                if (this.compressionThreshold == -1) this.packets.push(buffer)
+                if (this.compressionThreshold == -1) this.packetReceived(buffer)
                 else {
                     const [len, off] = decodeVarInt(buffer)
-                    if (len == 0) this.packets.push(buffer.slice(off))
-                    else zlib.inflate(buffer.slice(off), (err, decompressed) => {
-                        if (err) this.handleError(err)
-                        this.packets.push(decompressed)
-                    })
+                    if (len == 0) this.packetReceived(buffer.slice(off))
+                    else this.packetReceived(await new Promise(resolve => {
+                        zlib.inflate(buffer.slice(off), (err, buffer) => {
+                            if (err) this.handleError(err)
+                            else resolve(buffer)
+                        })
+                    }))
                 }
                 this.buffer = this.buffer.slice(off + len)
             } catch (error) {
                 this.handleError(error)
             }
-        }
-        if (!this.paused) {
-            this.packets.forEach(this.packetReceived)
-            this.nextCallbacks.forEach(cb => cb())
-            this.nextCallbacks.clear()
         }
         return cb()
     }})
@@ -86,10 +83,11 @@ export class Connection {
         } else {
             if (chunk.length < this.compressionThreshold) {
                 this.splitter.push(Buffer.concat([encodeVarInt(chunk.length + 1), encodeVarInt(0), chunk]))
-            } else zlib.deflate(chunk, (err, compressed) => {
+            } else return zlib.deflate(chunk, (err, compressed) => {
                 if (err) this.handleError(err)
                 const buffer = Buffer.concat([encodeVarInt(compressed.length), compressed])
                 this.splitter.push(Buffer.concat([encodeVarInt(buffer.length), buffer]))
+                cb()
             })
         }
         cb()
@@ -118,9 +116,11 @@ export class Connection {
     /** Process all packets that have been received while being paused. */
     resume() {
         this.paused = false
+        if (this.onPacket) this.packets.forEach(buffer => {
+            this.onPacket(new PacketReader(buffer))
+        })
         this.nextCallbacks.forEach(cb => cb())
         this.nextCallbacks.clear()
-        this.packets.forEach(this.packetReceived)
     }
 
     destroy() {
@@ -159,7 +159,13 @@ export class Connection {
     }
 
     private packetReceived = (buffer: Buffer) => {
-        this.onPacket && this.onPacket(new PacketReader(buffer))
+        this.packets.push(buffer)
+
+        if (!this.paused) {
+            this.onPacket && this.onPacket(new PacketReader(buffer))
+            this.nextCallbacks.forEach(cb => cb())
+            this.nextCallbacks.clear()
+        }
 
         const packet = new PacketReader(buffer)
 
