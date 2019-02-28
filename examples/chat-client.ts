@@ -1,6 +1,6 @@
 import { connect } from "net"
 import * as chat from "mc-chat-format"
-import { Connection, PacketWriter } from "../lib"
+import { Connection, PacketWriter } from ".."
 import { getProfile } from "./utils"
 
 const host = process.argv[2] || "eu.mineplex.com"
@@ -10,14 +10,16 @@ const { accessToken, profile, displayName } = getProfile()
 
 const socket = connect({ host, port }, async () => {
     socket.on("close", () => process.exit())
-    const client = new Connection(socket, { accessToken, profile, keepAlive: true })
+    const client = new Connection(socket, { accessToken, profile })
 
     client.send(new PacketWriter(0x0).writeVarInt(404)
     .writeString(host).writeUInt16(port).writeVarInt(2))
 
     client.send(new PacketWriter(0x0).writeString(displayName))
 
-    client.onDisconnect = reason => console.log(chat.format(reason))
+    client.onDisconnect = reason => {
+        console.log("Disconnected: " + chat.format(reason, { useAnsiCodes: true }))
+    }
     await new Promise(resolve => (client.onLogin = resolve))
 
     client.onPacket = packet => {

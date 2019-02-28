@@ -1,9 +1,9 @@
 import { createServer, connect } from "net"
-import { Connection, PacketWriter, Packet } from "../lib"
+import { Connection, PacketWriter, Packet, State } from ".."
 import { getProfile } from "./utils"
 
-const host = "2b2t.org"
-const port = 25565
+const host = process.argv[2] || "eu.mineplex.com"
+const port = +process.argv[3] || 25565
 
 const { accessToken, displayName, profile } = getProfile()
 
@@ -12,6 +12,7 @@ createServer(async serverSocket => {
     const server = new Connection(serverSocket, { isServer: true })
 
     const handshake = await server.nextPacket()
+    server.pause()
 
     const clientSocket = connect({ host, port }, async () => {
         clientSocket.on("close", () => serverSocket.end())
@@ -22,16 +23,22 @@ createServer(async serverSocket => {
 
         const protocol = handshake.readVarInt()
         handshake.readString(), handshake.readInt16()
-        const nextState = handshake.readVarInt()
 
         client.send(new PacketWriter(0x0).writeVarInt(protocol)
-        .writeString(host).writeUInt16(port).writeVarInt(nextState))
+        .writeString(host).writeUInt16(port).writeVarInt(server.state))
 
-        client.send(nextState == 2 ? new PacketWriter(0x0).writeString(displayName) : new PacketWriter(0x0))
+        const packet = await server.nextPacket()
+        server.resume()
 
-        if (nextState == 2) server.send(await new Promise<Packet>((res, rej) => {
-            client.onLogin = res, client.onDisconnect = rej
-        }))
+        if (server.state == State.Login) {
+            client.send(new PacketWriter(0x0).writeString(displayName))
+
+            server.send(await new Promise<Packet>((resolve, reject) => {
+                client.onLogin = resolve, client.onDisconnect = reject
+            }))
+        } else if (server.state == State.Status) {
+            client.send(packet)
+        }
 
         client.onPacket = server.send
         server.onPacket = client.send
