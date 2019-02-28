@@ -158,6 +158,13 @@ export class Connection {
         }
     }
 
+    setEncryption(sharedSecret: Buffer) {
+        this.cipher = createCipheriv("aes-128-cfb8", sharedSecret, sharedSecret)
+        this.decipher = createDecipheriv("aes-128-cfb8", sharedSecret, sharedSecret)
+        this.socket.unpipe(this.reader), this.socket.pipe(this.decipher).pipe(this.reader)
+        this.splitter.unpipe(this.socket), this.splitter.pipe(this.cipher).pipe(this.socket)
+    }
+
     private packetReceived = (buffer: Buffer) => {
         this.packets.push(buffer)
 
@@ -223,9 +230,6 @@ export class Connection {
             .writeVarInt(encryptedVerifyToken.length).write(encryptedVerifyToken)
         )
 
-        this.cipher = createCipheriv("aes-128-cfb8", sharedSecret, sharedSecret)
-        this.decipher = createDecipheriv("aes-128-cfb8", sharedSecret, sharedSecret)
-        this.socket.unpipe(this.reader), this.socket.pipe(this.decipher).pipe(this.reader)
-        this.splitter.unpipe(this.socket), this.splitter.pipe(this.cipher).pipe(this.socket)
+        this.setEncryption(sharedSecret)
     }
 }
