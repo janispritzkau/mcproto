@@ -73,9 +73,9 @@ export class Connection {
             }
         }
         if (!this.paused) {
+            this.packets.forEach(this.packetReceived)
             this.nextCallbacks.forEach(cb => cb())
             this.nextCallbacks.clear()
-            this.packets.forEach(this.packetReceived)
         }
         return cb()
     }})
@@ -159,11 +159,7 @@ export class Connection {
     }
 
     private packetReceived = (buffer: Buffer) => {
-        if (this.nextCallbacks.size > 0)
-            this.onPacket && this.onPacket(new PacketReader(buffer))
-        else setImmediate(() => {
-            this.onPacket && this.onPacket(new PacketReader(buffer))
-        })
+        this.onPacket && this.onPacket(new PacketReader(buffer))
 
         const packet = new PacketReader(buffer)
 
