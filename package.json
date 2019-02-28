@@ -18,10 +18,10 @@
   "author": "Janis Pritzkau",
   "license": "ISC",
   "devDependencies": {
-    "@types/node": "^10.12.24",
+    "@types/node": "^10.12.27",
     "@types/node-fetch": "^2.1.6",
     "mc-chat-format": "^1.0.3",
-    "typescript": "^3.3.3"
+    "typescript": "^3.3.3333"
   },
   "dependencies": {
     "node-fetch": "^2.3.0"
