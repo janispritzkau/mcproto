@@ -1,9 +1,8 @@
 import { createServer } from "net"
 import { Connection, PacketWriter, State } from ".."
-import { randomBytes, generateKeyPairSync, RSAKeyPairOptions, privateDecrypt } from "crypto";
-import { RSA_PKCS1_PADDING } from "constants";
-import * as querystring from "querystring"
-import fetch from "node-fetch"
+import { randomBytes, generateKeyPairSync, RSAKeyPairOptions } from "crypto"
+import * as chat from "mc-chat-format"
+import * as rl from "readline"
 
 const { privateKey, publicKey } = generateKeyPairSync("rsa", {
     modulusLength: 1024,
@@ -84,9 +83,11 @@ createServer(async socket => {
 
     client.onPacket = packet => {
         if (packet.id == 0x2) {
-            broadcast({ translate: "chat.type.text", with: [
-                { text: username }, { text: packet.readString() }
-            ] })
+            broadcast({
+                translate: "chat.type.text", with: [
+                    { text: username }, { text: packet.readString() }
+                ]
+            })
         }
     }
 
@@ -96,8 +97,20 @@ createServer(async socket => {
 
 }).listen(25565)
 
-function broadcast(chat: any) {
+rl.createInterface({
+    input: process.stdin, output: process.stdout
+}).on("line", line => {
+    if (!line) return
+    broadcast({
+        translate: "chat.type.announcement", with: [
+            { text: "Server" }, { text: line, color: "white" }
+        ]
+    })
+})
+
+function broadcast(text: any) {
+    console.log(chat.format(text, { useAnsiCodes: true }))
     clients.forEach(client => {
-        client.send(new PacketWriter(0xe).writeJSON(chat).writeInt8(0))
+        client.send(new PacketWriter(0xe).writeJSON(text).writeInt8(0))
     })
 }

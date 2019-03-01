@@ -2,6 +2,7 @@ import { connect } from "net"
 import * as chat from "mc-chat-format"
 import { Connection, PacketWriter } from ".."
 import { getProfile } from "./utils"
+import * as rl from "readline"
 
 const host = process.argv[2] || "eu.mineplex.com"
 const port = +process.argv[3] || 25565
@@ -35,11 +36,10 @@ const socket = connect({ host, port }, async () => {
         }
     }
 
-    let data = ""
-    process.stdin.on("data", chunk => {
-        data += (chunk.toString() as string).replace(/(\r\n?)/g, "\n")
-        const lines = data.split("\n")
-        data = lines.pop()!
-        for (let line of lines) client.send(new PacketWriter(0x2).writeString(line))
+    rl.createInterface({
+        input: process.stdin, output: process.stdout
+    }).on("line", line => {
+        if (!line) return
+        client.send(new PacketWriter(0x2).writeString(line))
     })
 })
