@@ -52,32 +52,8 @@ createServer(async socket => {
         return socket.end()
     }
 
-    const serverId = randomBytes(4).toString("hex")
-    const verifyToken = randomBytes(4)
-
-    client.send(new PacketWriter(0x1)
-    .writeString(serverId)
-    .writeVarInt(publicKey.length).write(publicKey)
-    .writeVarInt(verifyToken.length).write(verifyToken))
-
-    const res = await client.nextPacketWithId(0x1)
-    const encryptedSharedKey = res.read(res.readVarInt())
-    const encryptedVerifyToken = res.read(res.readVarInt())
-
-    const clientVerifyToken = privateDecrypt({ key: privateKey, padding: RSA_PKCS1_PADDING }, encryptedVerifyToken)
-    if (!verifyToken.equals(clientVerifyToken)) {
-        return socket.end()
-    }
-    const sharedKey = privateDecrypt({ key: privateKey, padding: RSA_PKCS1_PADDING }, encryptedSharedKey)
-
-    if (!hasJoinedSession(serverId, username)) {
-        return socket.end()
-    }
-
-    client.setEncryption(sharedKey)
-
-    client.send(new PacketWriter(0x3).writeVarInt(256))
-    client.compressionThreshold = 256
+    await client.encrypt(publicKey, privateKey, username)
+    client.setCompression(256)
 
     // Login success
     client.send(new PacketWriter(0x2)
@@ -124,14 +100,4 @@ function broadcast(chat: any) {
     clients.forEach(client => {
         client.send(new PacketWriter(0xe).writeJSON(chat).writeInt8(0))
     })
-}
-
-function send(client: Connection, chat: any) {
-    client.send(new PacketWriter(0xe).writeJSON(chat).writeInt8(0))
-}
-
-export async function hasJoinedSession(serverId: string, username: string, ip?: string) {
-    let response = await fetch("https://sessionserver.mojang.com/session/minecraft/hasJoined"
-    + querystring.stringify({ serverId, username, ip }))
-    return response.ok
 }

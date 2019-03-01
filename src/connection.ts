@@ -1,7 +1,8 @@
 import { encodeVarInt, decodeVarInt } from "./varint"
 import { PacketWriter, PacketReader, Packet } from "./packet"
-import { joinSession, mcPublicKeyToPem, mcHexDigest } from "./utils"
-import { randomBytes, publicEncrypt, Cipher, Decipher, createCipheriv, createDecipheriv, createHash } from "crypto"
+import { joinSession, mcPublicKeyToPem, mcHexDigest, hasJoinedSession } from "./utils"
+import { randomBytes, publicEncrypt, Cipher, Decipher, createCipheriv,
+    createDecipheriv, createHash, privateDecrypt } from "crypto"
 import { RSA_PKCS1_PADDING } from "constants"
 import { Writable, Transform } from "stream"
 import * as zlib from "zlib"
@@ -156,6 +157,10 @@ export class Connection {
             reader.readString(), reader.readUInt16()
             this.state = reader.readVarInt()
         }
+
+    setCompression(threshold: number) {
+        if (this.isServer) this.send(new PacketWriter(0x3).writeVarInt(threshold))
+        this.compressionThreshold = threshold
     }
 
     setEncryption(sharedSecret: Buffer) {
@@ -165,7 +170,35 @@ export class Connection {
         this.splitter.unpipe(this.socket), this.splitter.pipe(this.cipher).pipe(this.socket)
     }
 
-    private packetReceived = (buffer: Buffer) => {
+    async encrypt(publicKey: Buffer, privateKey: string, username: string) {
+        if (!this.isServer) throw new Error("Cannot be called on client connection")
+        const serverId = randomBytes(4).toString("hex")
+        const verifyToken = randomBytes(4)
+
+        this.send(new PacketWriter(0x1)
+        .writeString(serverId)
+        .writeVarInt(publicKey.length).write(publicKey)
+        .writeVarInt(verifyToken.length).write(verifyToken))
+
+        const res = await this.nextPacketWithId(0x1)
+        const encryptedSharedKey = res.read(res.readVarInt())
+        const encryptedVerifyToken = res.read(res.readVarInt())
+
+        const clientVerifyToken = privateDecrypt({ key: privateKey, padding: RSA_PKCS1_PADDING }, encryptedVerifyToken)
+        if (!verifyToken.equals(clientVerifyToken)) {
+            this.socket.end()
+            throw new Error("Encryption failed")
+        }
+        const sharedKey = privateDecrypt({ key: privateKey, padding: RSA_PKCS1_PADDING }, encryptedSharedKey)
+
+        if (!hasJoinedSession(username, serverId)) {
+            this.socket.end()
+            throw new Error("Client authentication failed")
+        }
+        this.setEncryption(sharedKey)
+    }
+
+    private packetReceived(buffer: Buffer) {
         this.packets.push(buffer)
 
         if (!this.paused) {

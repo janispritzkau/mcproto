@@ -1,4 +1,5 @@
 import fetch from "node-fetch"
+import * as querystring from "querystring"
 
 export async function joinSession(accessToken: string, selectedProfile: string, serverId: string) {
     let response = await fetch("https://sessionserver.mojang.com/session/minecraft/join", {
@@ -10,6 +11,12 @@ export async function joinSession(accessToken: string, selectedProfile: string, 
             accessToken, selectedProfile, serverId
         })
     })
+    return response.ok
+}
+
+export async function hasJoinedSession(username: string, serverId: string, ip?: string) {
+    let response = await fetch("https://sessionserver.mojang.com/session/minecraft/hasJoined"
+    + querystring.stringify({ username, serverId, ip }))
     return response.ok
 }
 
