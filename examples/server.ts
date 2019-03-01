@@ -3,7 +3,7 @@ import { Connection, PacketWriter, State } from ".."
 
 createServer(async socket => {
     socket.on("error", err => console.error(err.message))
-    const client = new Connection(socket)
+    const client = new Connection(socket, { isServer: true })
     client.onError = error => console.log(error.message)
 
     const handshake = await client.nextPacket()
