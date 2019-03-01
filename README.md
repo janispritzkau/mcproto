@@ -1,46 +1,72 @@
 # Minecraft Protocol
 
-A small implementation of the Minecraft Protocol written in Typescript.
-It provides a functionality to decode or encode packets and has a `Connection`
-class which keeps track of the connection state, compression and encryption. It
-supports version 1.12.2 and 1.13.2.
+mcproto is a small and lightweight implementation of the Minecraft protocol.
+It aims to be a low-level library that provides the foundations
+for building clients, servers, proxy servers and higher level abstractions.
+This implementation only decodes packets that are related to connection state
+or the login procedure. That makes it a mostly version independent since those
+packets usually don't change from version to version.
 
-`mcproto` aims to be a relatively low level library that only handles connection
-related state. Connection related error handling is done outside of the library on the
-`Socket` class. `mcproto` has some basic event callbacks: `onDisconnect(reason: any)`,
-`onLogin(uuid: string, username: string)`, `onPacket(packet: PacketReader)` which can
-be set on the `Connection` class. Keep in mind that the protocol and packet ids
-can change from version to version.
+## Features
 
-This implementation doesn't automatically decode all packets, it does only decode
-packets that are related to the connection state like set compression
-or encryption request. For reading packets, the class `PacketReader` is provided
-which contains methods for reading common data types.
+- Compression
+- Encryption for client and server
+- Helper classes for writing / reading packets.
+- Asynchronous method for reading the next packet.
 
-Packets are written using the `PacketWriter` class and can be converted to a buffer
-with the `.encode()` method. The encoded packet is not prefixed with it's length.
+## Examples
 
-## Server List Ping
+### Server list ping
 
 ```js
 import { connect } from "net"
 import { Connection, PacketWriter } from "mcproto"
 
-const HOST = "play.hivemc.com"
+const host = "play.hivemc.com", port = 25565
 
-const socket = connect({ host: HOST, port: 25565 }, async () => {
+const socket = connect({ host, port }, async () => {
     const client = new Connection(socket)
 
     client.send(new PacketWriter(0x0).writeVarInt(-1)
-    .writeString(HOST).writeUInt16(socket.remotePort)
-    .writeVarInt(1))
+    .writeString(host).writeUInt16(port).writeVarInt(1))
 
     client.send(new PacketWriter(0x0))
 
     const response = await client.nextPacket()
-    console.log(response.readString())
+    console.log(response.readJSON())
 
     socket.end()
+})
+```
+
+### Client
+
+For online servers you need to specify a accessToken and profile id in the
+connection options.
+
+```js
+import { connect } from "net"
+import { Connection, PacketWriter } from ".."
+
+const socket = connect({ host, port }, async () => {
+    const client = new Connection(socket, { accessToken, profile })
+
+    client.send(new PacketWriter(0x0).writeVarInt(404)
+    .writeString(host).writeUInt16(port).writeVarInt(2))
+
+    client.send(new PacketWriter(0x0).writeString(displayName))
+
+    client.onDisconnect = reason => console.log(reason)
+    await new Promise(resolve => (client.onLogin = resolve))
+
+    client.onPacket = packet => {
+        // Chat message or disconnect
+        if (packet.id == 0xe || packet.id == 0x1b) {
+            console.log(packet.readJSON())
+        }
+    }
+
+    client.send(new PacketWriter(0x2).writeString("Hello world"))
 })
 ```
 
