@@ -147,16 +147,25 @@ export class Connection {
         }
     }
 
-    send = (p: Packet) => {
+    send(packet: Packet) {
         if (!this.socket.writable) return
-        const buffer = p instanceof PacketWriter ? p.encode() : p instanceof PacketReader ? p.buffer : p
+
+        const buffer = packet instanceof PacketWriter
+            ? packet.encode()
+            : packet instanceof PacketReader ? packet.buffer : packet
+
         this.splitter.write(buffer)
-        const reader = p instanceof PacketReader ? p : new PacketReader(buffer)
-        if (this.state == State.Handshake) {
-            this.protocol = reader.readVarInt()
-            reader.readString(), reader.readUInt16()
-            this.state = reader.readVarInt()
+
+        if (!this.isServer && this.state == State.Handshake) {
+            const handshake = packet instanceof PacketReader
+                ? (packet.offset = 0, packet)
+                : new PacketReader(buffer)
+
+            this.protocol = handshake.readVarInt()
+            handshake.readString(), handshake.readUInt16()
+            this.state = handshake.readVarInt()
         }
+    }
 
     setCompression(threshold: number) {
         if (this.isServer) this.send(new PacketWriter(0x3).writeVarInt(threshold))

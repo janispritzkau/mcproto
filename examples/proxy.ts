@@ -40,8 +40,8 @@ createServer(async serverSocket => {
             client.send(packet)
         }
 
-        client.onPacket = server.send
-        server.onPacket = client.send
+        client.onPacket = packet => server.send(packet)
+        server.onPacket = packet => client.send(packet)
     })
     clientSocket.on("error", err => console.error(err.message))
 }).listen(25565)
