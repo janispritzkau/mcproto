@@ -148,13 +148,9 @@ export class Connection {
     }
 
     send(packet: Packet) {
-        if (!this.socket.writable) return
-
         const buffer = packet instanceof PacketWriter
             ? packet.encode()
             : packet instanceof PacketReader ? packet.buffer : packet
-
-        this.splitter.write(buffer)
 
         if (!this.isServer && this.state == State.Handshake) {
             const handshake = packet instanceof PacketReader
@@ -165,6 +161,11 @@ export class Connection {
             handshake.readString(), handshake.readUInt16()
             this.state = handshake.readVarInt()
         }
+
+        return new Promise((res, rej) => this.splitter.write(buffer, err => {
+            if (err) rej(err)
+            else res()
+        }))
     }
 
     setCompression(threshold: number) {
