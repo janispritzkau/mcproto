@@ -27,7 +27,7 @@ const host = "play.hivemc.com", port = 25565
 const socket = connect({ host, port }, async () => {
     const client = new Connection(socket)
 
-    client.send(new PacketWriter(0x0).writeVarInt(-1)
+    client.send(new PacketWriter(0x0).writeVarInt(404)
     .writeString(host).writeUInt16(port).writeVarInt(1))
 
     client.send(new PacketWriter(0x0))
@@ -46,7 +46,7 @@ connection options.
 
 ```js
 import { connect } from "net"
-import { Connection, PacketWriter } from ".."
+import { Connection, PacketWriter } from "mcproto"
 
 const socket = connect({ host, port }, async () => {
     const client = new Connection(socket, { accessToken, profile })
@@ -75,6 +75,6 @@ More examples can be found in the repository's `examples` folder.
 ## Related projects
 
 - [mc-chat-format](https://gitlab.com/janispritzkau/mc-chat-format). Converts
-  chat components into raw / ansi formatted text. 
+  chat components into raw / ansi formatted text.
 - [mcrevproxy](https://gitlab.com/janispritzkau/mcrevproxy) (Reverse proxy)
 - [mc-status](https://gitlab.com/janispritzkau/mc-status) (Server status checker)
