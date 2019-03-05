@@ -71,3 +71,10 @@ const socket = connect({ host, port }, async () => {
 ```
 
 More examples can be found in the repository's `examples` folder.
+
+## Related projects
+
+- [mc-chat-format](https://gitlab.com/janispritzkau/mc-chat-format). Converts
+  chat components into raw / ansi formatted text. 
+- [mcrevproxy](https://gitlab.com/janispritzkau/mcrevproxy) (Reverse proxy)
+- [mc-status](https://gitlab.com/janispritzkau/mc-status) (Server status checker)
