@@ -5,8 +5,9 @@ import { randomBytes, publicEncrypt, Cipher, Decipher, createCipheriv,
     createDecipheriv, createHash, privateDecrypt } from "crypto"
 import { RSA_PKCS1_PADDING } from "constants"
 import { Writable, Transform } from "stream"
+import { Socket, connect } from "net"
 import * as zlib from "zlib"
-import { Socket } from "net"
+import * as dns from "dns"
 
 export enum State {
     Handshake = 0,
@@ -100,7 +101,7 @@ export class Connection {
     private keepAliveIdS?: number
     private keepAliveInterval: any
 
-    constructor(private socket: Socket, options?: ConnectionOptions) {
+    constructor(public socket: Socket, options?: ConnectionOptions) {
         if (options) {
             this.isServer = !!options.isServer
             this.accessToken = options.accessToken
@@ -111,6 +112,24 @@ export class Connection {
         socket.setNoDelay(true)
         socket.pipe(this.reader)
         this.splitter.pipe(socket)
+    }
+
+    static async connect(host: string, port?: number, options?: ConnectionOptions) {
+        if (!port) port = await new Promise<number>(resolve => {
+            dns.resolveSrv("_minecraft._tcp." + host, (err, addrs) => {
+                if (err || addrs.length == 0) return resolve(25565)
+                host = addrs[0].name
+                resolve(addrs[0].port)
+            })
+        })
+
+        return new Promise<Connection>((resolve, reject) => {
+            const socket = connect({ host, port: port! }, () => {
+                socket.removeListener("error", reject)
+                resolve(new Connection(socket, { ...options, isServer: false }))
+            })
+            socket.on("error", reject)
+        })
     }
 
     /**
