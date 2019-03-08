@@ -19,10 +19,10 @@ const { privateKey, publicKey } = generateKeyPairSync("rsa", {
 const clients: Set<Connection> = new Set
 
 createServer(async socket => {
-    socket.on("error", err => console.error(err.message))
-
     const client = new Connection(socket, { isServer: true })
-    client.onError = error => console.log(error)
+
+    socket.on("error", err => console.error(err.message))
+    client.onError = err => console.log(err.message)
 
     const handshake = await client.nextPacket()
     const protocol = handshake.readVarInt()
@@ -34,20 +34,21 @@ createServer(async socket => {
                 players: { max: -1, online: clients.size },
                 description: { text: "Chat server" }
             }))
-            else if (packet.id == 0x1) {
+            else if (packet.id == 0x1)
                 client.send(new PacketWriter(0x1).write(packet.read(8)))
-            }
         }
-        client.resume()
-        return setTimeout(() => socket.end(), 1000)
+        return setTimeout(() => socket.end(), 10000)
     }
 
     const loginStart = await client.nextPacket()
     const username = loginStart.readString()
 
     if (protocol != 404) {
-        client.send(new PacketWriter(0x0)
-        .writeJSON({ text: "Server only supports 1.13.2", color: "red" }))
+        client.send(new PacketWriter(0x0).writeJSON({
+            translate: "multiplayer.disconnect."
+            + (protocol < 404 ? "outdated_client" : "outdated_server"),
+            with: ["1.13.2"]
+        }))
         return socket.end()
     }
 
@@ -91,7 +92,8 @@ createServer(async socket => {
 }).listen(25565)
 
 rl.createInterface({
-    input: process.stdin, output: process.stdout
+    input: process.stdin,
+    output: process.stdout
 }).on("line", line => {
     if (!line) return
     broadcast({ translate: "chat.type.announcement", with: ["Server", line] })
