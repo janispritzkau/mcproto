@@ -4,7 +4,7 @@ import { Connection, PacketWriter } from ".."
 import { getProfile } from "./utils"
 import * as rl from "readline"
 
-const host = process.argv[2] || "eu.mineplex.com"
+const host = process.argv[2] || "localhost"
 const port = +process.argv[3] || 25565
 
 const { accessToken, profile, displayName } = getProfile()
@@ -19,17 +19,18 @@ const socket = connect({ host, port }, async () => {
     client.send(new PacketWriter(0x0).writeString(displayName))
 
     client.onDisconnect = reason => {
-        console.log("Disconnected: " + chat.format(reason, { useAnsiCodes: true }))
+        console.log(chat.format(reason, { useAnsiCodes: true }))
     }
+
     await new Promise(resolve => (client.onLogin = resolve))
 
     client.onPacket = packet => {
         switch (packet.id) {
-            case 0xe: case 0x1b:
-            console.log(chat.format(packet.readJSON(), { useAnsiCodes: true }))
-            break
+            case 0xe: case 0x1b: {
+                console.log(chat.format(packet.readJSON(), { useAnsiCodes: true }))
+            }; break
             case 0x32: {
-                packet.read(3 * 8 + 2 * 4 + 1) // ignore other stuff
+                packet.read(3 * 8 + 2 * 4 + 1)
                 const teleportId = packet.readVarInt()
                 client.send(new PacketWriter(0x0).writeVarInt(teleportId))
             }
@@ -37,7 +38,8 @@ const socket = connect({ host, port }, async () => {
     }
 
     rl.createInterface({
-        input: process.stdin, output: process.stdout
+        input: process.stdin,
+        output: process.stdout
     }).on("line", line => {
         if (!line) return
         client.send(new PacketWriter(0x2).writeString(line))
