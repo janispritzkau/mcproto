@@ -65,12 +65,6 @@ createServer(async socket => {
     .writeInt32(0).writeUInt8(3).writeInt32(1).writeUInt16(0)
     .writeString("flat").writeBool(true))
 
-    // Spawn position
-    client.send(new PacketWriter(0x49).write(Buffer.alloc(8)))
-
-    // Player abilites
-    client.send(new PacketWriter(0x2e).writeUInt8(2).writeFloat(0).writeFloat(1))
-
     // Player position and look
     client.send(new PacketWriter(0x32)
     .write(Buffer.alloc(8 * 3 + 4 * 2 + 2)))
