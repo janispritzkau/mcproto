@@ -20,19 +20,20 @@ interface ConnectionOptions {
     accessToken?: string
     profile?: string
     keepAlive?: boolean
+    kickTimeout?: number
 }
 
 export class Connection {
     state = State.Handshake
-    /** Limit on how many bytes a packet has to be at minimum to be compressed */
     compressionThreshold = -1
-    /** Respond to keep alive packets from server */
-    keepAlive = true
     isServer = false
+
+    keepAlive = true
+    kickTimeout = 30000
+    latency = -1
 
     paused = false
     destroyed = false
-    private protocol = -1
 
     accessToken?: string
     profile?: string
@@ -94,12 +95,18 @@ export class Connection {
         cb()
     }})
 
+    private disconnectId?: number
+    private keepAliveIdC?: number
+    private keepAliveIdS?: number
+    private keepAliveInterval: any
+
     constructor(private socket: Socket, options?: ConnectionOptions) {
         if (options) {
             this.isServer = !!options.isServer
             this.accessToken = options.accessToken
             this.profile = options.profile
             if (options.keepAlive != null) this.keepAlive = options.keepAlive
+            this.kickTimeout = options.kickTimeout || this.kickTimeout
         }
         socket.setNoDelay(true)
         socket.pipe(this.reader)
@@ -152,14 +159,15 @@ export class Connection {
             ? packet.encode()
             : packet instanceof PacketReader ? packet.buffer : packet
 
-        if (!this.isServer && this.state == State.Handshake) {
-            const handshake = packet instanceof PacketReader
-                ? (packet.offset = 0, packet)
-                : new PacketReader(buffer)
+        const reader = packet instanceof PacketReader
+            ? packet : new PacketReader(buffer)
 
-            this.protocol = handshake.readVarInt()
-            handshake.readString(), handshake.readUInt16()
-            this.state = handshake.readVarInt()
+        if (!this.isServer && this.state == State.Handshake) {
+            this.setProtocol(reader.readVarInt())
+            reader.readString(), reader.readUInt16()
+            this.state = reader.readVarInt()
+        } else if (this.isServer && this.state == State.Login) {
+            if (reader.id == 0x2) this.startKeepAlive()
         }
 
         return new Promise((res, rej) => this.splitter.write(buffer, err => {
@@ -208,6 +216,12 @@ export class Connection {
         this.setEncryption(sharedKey)
     }
 
+    private setProtocol(protocol: number) {
+        this.keepAliveIdC = protocol < 345 ? 0x1f : 0x21
+        this.keepAliveIdS = protocol < 389 ? 0xb : 0xe
+        this.disconnectId = protocol < 345 ? 0x1a : 0x1b
+    }
+
     private packetReceived(buffer: Buffer) {
         this.packets.push(buffer)
 
@@ -220,7 +234,7 @@ export class Connection {
         const packet = new PacketReader(buffer)
 
         if (this.state == State.Handshake) {
-            this.protocol = packet.readVarInt()
+            this.setProtocol(packet.readVarInt())
             this.state = (packet.readString(), packet.readUInt16(), packet.readVarInt())
             return
         }
@@ -234,11 +248,29 @@ export class Connection {
             case 0x2: this.state = State.Play, this.onLogin(packet); break
             case 0x3: this.compressionThreshold = packet.readVarInt()
         } else if (this.state == State.Play && this.keepAlive) {
-            if (packet.id == (this.protocol < 345 ? 0x1f : 0x21)) {
-                this.send(new PacketWriter(this.protocol < 350 ? 0xb : 0xe)
+            if (packet.id == this.keepAliveIdC!) {
+                this.send(new PacketWriter(this.keepAliveIdS!)
                 .write(packet.read(8)))
             }
         }
+    }
+
+    private startKeepAlive() {
+        this.keepAliveInterval = setInterval(async () => {
+            const id = randomBytes(8)
+            this.send(new PacketWriter(this.keepAliveIdC!).write(id))
+
+            const start = Date.now()
+            await this.nextPacketWithId(this.keepAliveIdS!)
+            this.latency = Date.now() - start
+
+            if (this.latency > this.kickTimeout) {
+                await this.send(new PacketWriter(this.disconnectId!)
+                .writeJSON({ translate: "disconnect.timeout" }))
+                this.socket.end()
+            }
+        }, this.kickTimeout / 5)
+        this.socket.on("close", () => clearInterval(this.keepAliveInterval))
     }
 
     private handleError = (error: Error, shouldClose = false) => {

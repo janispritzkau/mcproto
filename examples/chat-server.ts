@@ -1,6 +1,6 @@
 import { createServer } from "net"
 import { Connection, PacketWriter, State } from ".."
-import { randomBytes, generateKeyPairSync, RSAKeyPairOptions } from "crypto"
+import { generateKeyPairSync, RSAKeyPairOptions } from "crypto"
 import * as chat from "mc-chat-format"
 import * as rl from "readline"
 
@@ -75,37 +75,26 @@ createServer(async socket => {
     .write(Buffer.alloc(8 * 3 + 4 * 2 + 2)))
 
     clients.add(client)
+
     socket.on("close", () => {
         clients.delete(client)
-        broadcast({ text: username + " left the game", color: "gold" })
+        broadcast({ translate: "multiplayer.player.left", with: [username] })
     })
-    broadcast({ text: username + " joined the game", color: "gold" })
+
+    broadcast({ translate: "multiplayer.player.joined", with: [username] })
 
     client.onPacket = packet => {
-        if (packet.id == 0x2) {
-            broadcast({
-                translate: "chat.type.text", with: [
-                    { text: username }, { text: packet.readString() }
-                ]
-            })
-        }
+        if (packet.id == 0x2) broadcast({
+            translate: "chat.type.text", with: [username, packet.readString()]
+        })
     }
-
-    setInterval(() => {
-        client.send(new PacketWriter(0x1f).write(randomBytes(8)))
-    }, 20000)
-
 }).listen(25565)
 
 rl.createInterface({
     input: process.stdin, output: process.stdout
 }).on("line", line => {
     if (!line) return
-    broadcast({
-        translate: "chat.type.announcement", with: [
-            { text: "Server" }, { text: line, color: "white" }
-        ]
-    })
+    broadcast({ translate: "chat.type.announcement", with: ["Server", line] })
 })
 
 function broadcast(text: any) {
