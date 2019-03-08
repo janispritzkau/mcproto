@@ -42,7 +42,8 @@ export class Connection {
     onPacket = (packet: PacketReader) => {}
     onLogin = (packet: PacketReader) => {}
     onDisconnect = (reason: any) => {}
-    onError?: (error: Error) => void
+    onError?: (error: any) => void
+    onClose?: () => void
 
     private nextCallbacks: Set<() => void> = new Set
     private packets: Buffer[] = []
@@ -109,7 +110,11 @@ export class Connection {
             if (options.keepAlive != null) this.keepAlive = options.keepAlive
             this.kickTimeout = options.kickTimeout || this.kickTimeout
         }
+
         socket.setNoDelay(true)
+        socket.on("error", err => this.handleError(err))
+        socket.on("close", () => (this.onClose && this.onClose()))
+
         socket.pipe(this.reader)
         this.splitter.pipe(socket)
     }
