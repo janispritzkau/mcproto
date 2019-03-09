@@ -1,12 +1,10 @@
-import { encodeVarInt, decodeVarInt } from "./varint"
 import { PacketWriter, PacketReader, Packet } from "./packet"
 import { joinSession, mcPublicKeyToPem, mcHexDigest, hasJoinedSession } from "./utils"
+import { Reader, Writer } from "./transforms"
 import { randomBytes, publicEncrypt, Cipher, Decipher, createCipheriv,
     createDecipheriv, createHash, privateDecrypt } from "crypto"
 import { RSA_PKCS1_PADDING } from "constants"
-import { Writable, Transform } from "stream"
 import { Socket, connect } from "net"
-import * as zlib from "zlib"
 import * as dns from "dns"
 
 export enum State {
@@ -51,51 +49,8 @@ export class Connection {
     private cipher?: Cipher
     private decipher?: Decipher
 
-    private buffer = Buffer.alloc(0)
-
-    private reader = new Writable({ write: async (chunk, _enc, cb) => {
-        this.buffer = Buffer.concat([this.buffer, chunk])
-        let len: number, off: number
-        if (!this.paused) this.packets.length = 0
-        while (true) {
-            try { [len, off] = decodeVarInt(this.buffer) } catch (err) { break }
-            if (off + len > this.buffer.length) break
-            const buffer = this.buffer.slice(off, off + len)
-            try {
-                if (this.compressionThreshold == -1) this.packetReceived(buffer)
-                else {
-                    const [len, off] = decodeVarInt(buffer)
-                    if (len == 0) this.packetReceived(buffer.slice(off))
-                    else this.packetReceived(await new Promise(resolve => {
-                        zlib.inflate(buffer.slice(off), (err, buffer) => {
-                            if (err) this.handleError(err)
-                            else resolve(buffer)
-                        })
-                    }))
-                }
-                this.buffer = this.buffer.slice(off + len)
-            } catch (error) {
-                this.handleError(error)
-            }
-        }
-        return cb()
-    }})
-
-    private splitter = new Transform({ transform: (chunk: Buffer, _enc, cb) => {
-        if (this.compressionThreshold == -1) {
-            this.splitter.push(Buffer.concat([encodeVarInt(chunk.length), chunk]))
-        } else {
-            if (chunk.length < this.compressionThreshold) {
-                this.splitter.push(Buffer.concat([encodeVarInt(chunk.length + 1), encodeVarInt(0), chunk]))
-            } else return zlib.deflate(chunk, (err, compressed) => {
-                if (err) this.handleError(err)
-                const buffer = Buffer.concat([encodeVarInt(compressed.length), compressed])
-                this.splitter.push(Buffer.concat([encodeVarInt(buffer.length), buffer]))
-                cb()
-            })
-        }
-        cb()
-    }})
+    private reader = new Reader
+    private writer = new Writer
 
     private disconnectId?: number
     private keepAliveIdC?: number
@@ -115,8 +70,10 @@ export class Connection {
         socket.on("error", err => this.handleError(err))
         socket.on("close", () => (this.onClose && this.onClose()))
 
-        socket.pipe(this.reader)
-        this.splitter.pipe(socket)
+        this.socket.pipe(this.reader)
+        this.writer.pipe(this.socket)
+
+        this.reader.on("data", packet => this.packetReceived(packet))
     }
 
     static async connect(host: string, port?: number, options?: ConnectionOptions) {
@@ -158,7 +115,7 @@ export class Connection {
     destroy() {
         this.destroyed = true
         this.socket.unpipe()
-        this.splitter.unpipe()
+        this.writer.unpipe()
     }
 
     async nextPacket() {
@@ -192,7 +149,7 @@ export class Connection {
             if (reader.id == 0x2) this.startKeepAlive()
         }
 
-        return new Promise((res, rej) => this.splitter.write(buffer, err => {
+        return new Promise((res, rej) => this.writer.write(buffer, err => {
             if (err) rej(err)
             else res()
         }))
@@ -209,13 +166,17 @@ export class Connection {
     setCompression(threshold: number) {
         if (this.isServer) this.send(new PacketWriter(0x3).writeVarInt(threshold))
         this.compressionThreshold = threshold
+        this.reader.compressionThreshold = threshold
+        this.writer.compressionThreshold = threshold
     }
 
     setEncryption(sharedSecret: Buffer) {
         this.cipher = createCipheriv("aes-128-cfb8", sharedSecret, sharedSecret)
         this.decipher = createDecipheriv("aes-128-cfb8", sharedSecret, sharedSecret)
-        this.socket.unpipe(this.reader), this.socket.pipe(this.decipher).pipe(this.reader)
-        this.splitter.unpipe(this.socket), this.splitter.pipe(this.cipher).pipe(this.socket)
+        this.socket.unpipe(), this.writer.unpipe()
+
+        this.socket.pipe(this.decipher).pipe(this.reader)
+        this.writer.pipe(this.cipher).pipe(this.socket)
     }
 
     async encrypt(publicKey: Buffer, privateKey: string, username: string): Promise<boolean> {
@@ -250,6 +211,7 @@ export class Connection {
 
     private packetReceived(buffer: Buffer) {
         this.packets.push(buffer)
+        setImmediate(() => this.packets.length = 0)
 
         if (!this.paused) {
             this.onPacket && this.onPacket(new PacketReader(buffer))
@@ -272,7 +234,7 @@ export class Connection {
             case 0x1: this.onEncryptionRequest(packet)
                 .catch(err => this.handleError(err, true)); break
             case 0x2: this.state = State.Play, this.onLogin(packet); break
-            case 0x3: this.compressionThreshold = packet.readVarInt()
+            case 0x3: this.setCompression(packet.readVarInt())
         } else if (this.state == State.Play) switch (packet.id) {
             case this.keepAliveIdC: if (this.keepAlive)
                 this.send(new PacketWriter(this.keepAliveIdS!)
