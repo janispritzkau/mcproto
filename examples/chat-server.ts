@@ -64,7 +64,7 @@ createServer(async socket => {
         broadcast({ translate: "multiplayer.player.left", with: [username] })
     }
 
-    broadcast({ translate: "multiplayer.player.joined", with: [username] })
+    broadcast({ translate: "multiplayer.player.joined", with: [username] }, client)
 
     client.onPacket = packet => {
         if (packet.id == 0x2) broadcast({
@@ -80,7 +80,10 @@ rl.createInterface({
     if (line) broadcast({ translate: "chat.type.announcement",with: ["Server", line] })
 })
 
-function broadcast(text: any) {
+function broadcast(text: any, exclude?: Connection) {
     console.log(chat.format(text, { useAnsiCodes: true }))
-    clients.forEach(c => c.send(new PacketWriter(0xe).writeJSON(text).writeInt8(0)))
+    clients.forEach(client => {
+        if (exclude == client) return
+        client.send(new PacketWriter(0xe).writeJSON(text).writeInt8(0))
+    })
 }

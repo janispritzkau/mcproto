@@ -39,13 +39,15 @@ createServer(async serverSocket => {
         .writeString(host).writeUInt16(port).writeVarInt(server.state))
 
         server.onPacket = packet => client.send(packet)
-        server.resume()
+        await server.resume()
 
         server.destroy(), client.destroy()
         serverSocket.pipe(client.socket), client.socket.pipe(serverSocket)
     }))
+
     client.onError = error => console.log(error.toString())
-    client.onClose = server.disconnect
-    server.onClose = client.disconnect
+
+    client.onClose = () => server.disconnect()
+    server.onClose = () => client.disconnect()
 }).listen(25565)
 
