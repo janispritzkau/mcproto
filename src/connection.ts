@@ -37,13 +37,13 @@ export class Connection {
     accessToken?: string
     profile?: string
 
-    onPacket = (packet: PacketReader) => {}
-    onLogin = (packet: PacketReader) => {}
-    onDisconnect = (reason: any) => {}
+    onPacket?: (packet: PacketReader) => void
+    onLogin?: (packet: PacketReader) => void
+    onDisconnect?: (reason: any) => void
     onError?: (error: any) => void
     onClose?: () => void
 
-    private nextCallbacks: Set<() => void> = new Set
+    private nextCallbacks: Set<(packet: PacketReader) => void> = new Set
     private packets: Buffer[] = []
 
     private cipher?: Cipher
@@ -96,22 +96,21 @@ export class Connection {
         })
     }
 
-    /**
-     * All packets will be saved and processed next time on resume.
-     * Note that you can also pause and resume Node's `net.Socket`.
-     */
     pause() {
         this.paused = true
+        this.socket.pause()
     }
 
-    /** Process all packets that have been received while being paused. */
-    resume() {
+    async resume() {
+        for (const packet of this.packets) {
+            await Promise.resolve()
+            this.onPacket && this.onPacket(new PacketReader(packet))
+            this.nextCallbacks.forEach(cb => cb(new PacketReader(packet)))
+            this.nextCallbacks.clear()
+        }
+        this.packets.length = 0
         this.paused = false
-        if (this.onPacket) this.packets.forEach(buffer => {
-            this.onPacket(new PacketReader(buffer))
-        })
-        this.nextCallbacks.forEach(cb => cb())
-        this.nextCallbacks.clear()
+        this.socket.resume()
     }
 
     destroy() {
@@ -120,12 +119,8 @@ export class Connection {
         this.writer.unpipe()
     }
 
-    async nextPacket() {
-        while (true) {
-            const packet = this.packets.shift()!
-            if (packet) return new PacketReader(packet)
-            await new Promise(res => this.nextCallbacks.add(res))
-        }
+    nextPacket(): Promise<PacketReader> {
+        return new Promise(res => this.nextCallbacks.add(res))
     }
 
     async nextPacketWithId(id: number) {
@@ -148,7 +143,7 @@ export class Connection {
             reader.readString(), reader.readUInt16()
             this.state = reader.readVarInt()
         } else if (this.isServer && this.state == State.Login) {
-            if (reader.id == 0x2) this.startKeepAlive()
+            if (reader.id == 0x2) if (this.keepAlive) this.startKeepAlive()
         }
 
         return new Promise((res, rej) => this.writer.write(buffer, err => {
@@ -212,36 +207,52 @@ export class Connection {
     }
 
     private packetReceived(buffer: Buffer) {
-        this.packets.push(buffer)
-
-        if (!this.paused) {
+        if (this.paused) {
+            this.packets.push(buffer)
+        } else {
             this.onPacket && this.onPacket(new PacketReader(buffer))
-            this.nextCallbacks.forEach(cb => cb())
+            this.nextCallbacks.forEach(cb => cb(new PacketReader(buffer)))
             this.nextCallbacks.clear()
-            setImmediate(() => this.packets.length = 0)
         }
 
         const packet = new PacketReader(buffer)
 
-        if (this.state == State.Handshake) {
-            this.setProtocol(packet.readVarInt())
-            this.state = (packet.readString(), packet.readUInt16(), packet.readVarInt())
+        if (this.isServer) {
+            if (this.state == State.Handshake) {
+                this.setProtocol(packet.readVarInt())
+                packet.readString(), packet.readUInt16()
+                this.state = packet.readVarInt()
+            }
             return
         }
 
-        if (this.isServer) return
-
         if (this.state == State.Login) switch (packet.id) {
-            case 0x0: this.onDisconnect(packet.readJSON()); break
-            case 0x1: this.onEncryptionRequest(packet)
-                .catch(err => this.handleError(err, true)); break
-            case 0x2: this.state = State.Play, this.onLogin(packet); break
-            case 0x3: this.setCompression(packet.readVarInt())
+            case 0x0: {
+                this.onDisconnect && this.onDisconnect(packet.readJSON())
+                break
+            }
+            case 0x1: {
+                this.onEncryptionRequest(packet)
+                    .catch(error => this.handleError(error, true))
+                break
+            }
+            case 0x2: {
+                this.state = State.Play
+                this.onLogin && this.onLogin(packet)
+                break
+            }
+            case 0x3: this.setCompression(packet.readVarInt()); break
         } else if (this.state == State.Play) switch (packet.id) {
-            case this.keepAliveIdC: if (this.keepAlive)
-                this.send(new PacketWriter(this.keepAliveIdS!)
-                .write(packet.read(8))); break
-            case this.disconnectId: this.onDisconnect(packet.readJSON()); break
+            case this.keepAliveIdC: {
+                if (this.keepAlive)
+                    this.send(new PacketWriter(this.keepAliveIdS!)
+                        .write(packet.read(8)))
+                break
+            }
+            case this.disconnectId: {
+                this.onDisconnect && this.onDisconnect(packet.readJSON())
+                break
+            }
         }
     }
 
@@ -277,8 +288,7 @@ export class Connection {
             .update(serverId)
             .update(sharedSecret)
             .update(publicKey)
-            .digest()
-        )
+            .digest())
 
         if (!await joinSession(this.accessToken!, this.profile!, hashedServerId)) {
             this.handleError(new Error("Invalid access token"), true)
@@ -290,8 +300,7 @@ export class Connection {
 
         this.send(new PacketWriter(0x1)
             .writeVarInt(encryptedSharedKey.length).write(encryptedSharedKey)
-            .writeVarInt(encryptedVerifyToken.length).write(encryptedVerifyToken)
-        )
+            .writeVarInt(encryptedVerifyToken.length).write(encryptedVerifyToken))
 
         this.setEncryption(sharedSecret)
     }

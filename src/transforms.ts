@@ -76,6 +76,7 @@ export class Reader extends Transform {
                 return this.destroy(error)
             }
             offset += length
+            await Promise.resolve()
         }
 
         this.buffer = this.buffer.slice(offset)
