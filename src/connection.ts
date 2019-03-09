@@ -157,10 +157,8 @@ export class Connection {
 
     destroy() {
         this.destroyed = true
-        this.socket.unpipe(this.reader)
-        this.socket.unpipe(this.decipher)
-        this.splitter.unpipe(this.socket)
-        this.splitter.unpipe(this.cipher)
+        this.socket.unpipe()
+        this.splitter.unpipe()
     }
 
     async nextPacket() {
@@ -200,6 +198,14 @@ export class Connection {
         }))
     }
 
+    async disconnect(reason?: any) {
+        if (reason) {
+            const id = this.state == State.Play ? this.disconnectId! : 0x0
+            await this.send(new PacketWriter(id).writeJSON(reason))
+        }
+        this.socket.end()
+    }
+
     setCompression(threshold: number) {
         if (this.isServer) this.send(new PacketWriter(0x3).writeVarInt(threshold))
         this.compressionThreshold = threshold
@@ -212,13 +218,12 @@ export class Connection {
         this.splitter.unpipe(this.socket), this.splitter.pipe(this.cipher).pipe(this.socket)
     }
 
-    async encrypt(publicKey: Buffer, privateKey: string, username: string) {
+    async encrypt(publicKey: Buffer, privateKey: string, username: string): Promise<boolean> {
         if (!this.isServer) throw new Error("Cannot be called on client connection")
         const serverId = randomBytes(4).toString("hex")
         const verifyToken = randomBytes(4)
 
-        this.send(new PacketWriter(0x1)
-        .writeString(serverId)
+        this.send(new PacketWriter(0x1).writeString(serverId)
         .writeVarInt(publicKey.length).write(publicKey)
         .writeVarInt(verifyToken.length).write(verifyToken))
 
@@ -227,17 +232,14 @@ export class Connection {
         const encryptedVerifyToken = res.read(res.readVarInt())
 
         const clientVerifyToken = privateDecrypt({ key: privateKey, padding: RSA_PKCS1_PADDING }, encryptedVerifyToken)
-        if (!verifyToken.equals(clientVerifyToken)) {
-            this.socket.end()
-            throw new Error("Encryption failed")
-        }
+        if (!verifyToken.equals(clientVerifyToken)) return (this.disconnect(), false)
         const sharedKey = privateDecrypt({ key: privateKey, padding: RSA_PKCS1_PADDING }, encryptedSharedKey)
 
-        if (!hasJoinedSession(username, serverId)) {
-            this.socket.end()
-            throw new Error("Client authentication failed")
-        }
-        this.setEncryption(sharedKey)
+        if (!hasJoinedSession(username, serverId)) this.disconnect({
+            translate: "multiplayer.disconnect.unverified_username"
+        })
+
+        return (this.setEncryption(sharedKey), true)
     }
 
     private setProtocol(protocol: number) {
@@ -271,11 +273,11 @@ export class Connection {
                 .catch(err => this.handleError(err, true)); break
             case 0x2: this.state = State.Play, this.onLogin(packet); break
             case 0x3: this.compressionThreshold = packet.readVarInt()
-        } else if (this.state == State.Play && this.keepAlive) {
-            if (packet.id == this.keepAliveIdC!) {
+        } else if (this.state == State.Play) switch (packet.id) {
+            case this.keepAliveIdC: if (this.keepAlive)
                 this.send(new PacketWriter(this.keepAliveIdS!)
-                .write(packet.read(8)))
-            }
+                .write(packet.read(8))); break
+            case this.disconnectId: this.onDisconnect(packet.readJSON()); break
         }
     }
 
@@ -288,11 +290,9 @@ export class Connection {
             await this.nextPacketWithId(this.keepAliveIdS!)
             this.latency = Date.now() - start
 
-            if (this.latency > this.kickTimeout) {
-                await this.send(new PacketWriter(this.disconnectId!)
-                .writeJSON({ translate: "disconnect.timeout" }))
-                this.socket.end()
-            }
+            if (this.latency > this.kickTimeout) this.disconnect({
+                translate: "disconnect.timeout"
+            })
         }, this.kickTimeout / 5)
         this.socket.on("close", () => clearInterval(this.keepAliveInterval))
     }
