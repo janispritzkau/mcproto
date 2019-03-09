@@ -39,28 +39,41 @@ export class Reader extends Transform {
         let length: number
 
         while (true) {
+            const packetStart = offset
+
             try {
                 [length, offset] = decodeVarInt(this.buffer, offset)
-            } catch (err) { break }
+            } catch (err) {
+                break
+            }
 
-            if (length == 0 || offset + length > this.buffer.length) break
+            if (offset + length > this.buffer.length) {
+                offset = packetStart
+                break
+            }
 
-            if (this.compressionThreshold == -1) {
-                this.push(this.buffer.slice(offset, offset + length))
-            } else {
-                const [len, off] = decodeVarInt(this.buffer, offset)
-                const buffer = this.buffer.slice(off, offset + length)
-
-                if (len == 0) {
-                    this.push(buffer)
+            try {
+                if (this.compressionThreshold == -1) {
+                    this.push(this.buffer.slice(offset, offset + length))
                 } else {
-                    await new Promise(resolve => {
-                        zlib.inflate(buffer, (error, buffer) => {
-                            if (error) callback(error)
-                            else this.push(buffer), resolve()
-                        })
-                    })
+                    const [len, off] = decodeVarInt(this.buffer, offset)
+                    const buffer = this.buffer.slice(off, offset + length)
+
+                    if (len == 0) {
+                        this.push(buffer)
+                    } else {
+                        this.push(await new Promise((resolve, reject) => {
+                            zlib.inflate(buffer, {
+                                finishFlush: zlib.constants.Z_SYNC_FLUSH
+                            }, (error, buffer) => {
+                                if (error) reject(error)
+                                else resolve(buffer)
+                            })
+                        }))
+                    }
                 }
+            } catch (error) {
+                return this.destroy(error)
             }
             offset += length
         }

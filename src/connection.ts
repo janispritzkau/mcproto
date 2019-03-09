@@ -74,6 +74,8 @@ export class Connection {
         this.writer.pipe(this.socket)
 
         this.reader.on("data", packet => this.packetReceived(packet))
+        this.reader.on("error", error => this.handleError(error))
+        this.reader.on("close", () => this.writer.end())
     }
 
     static async connect(host: string, port?: number, options?: ConnectionOptions) {
@@ -211,12 +213,12 @@ export class Connection {
 
     private packetReceived(buffer: Buffer) {
         this.packets.push(buffer)
-        setImmediate(() => this.packets.length = 0)
 
         if (!this.paused) {
             this.onPacket && this.onPacket(new PacketReader(buffer))
             this.nextCallbacks.forEach(cb => cb())
             this.nextCallbacks.clear()
+            setImmediate(() => this.packets.length = 0)
         }
 
         const packet = new PacketReader(buffer)
