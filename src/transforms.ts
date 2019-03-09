@@ -30,10 +30,14 @@ export class Writer extends Transform {
 
 export class Reader extends Transform {
     compressionThreshold = -1
-    buffer = Buffer.alloc(0)
+
+    private buffer = Buffer.alloc(0)
+    private transforming = false
+    private flushCb?: () => void
 
     async _transform(chunk: Buffer, _enc: string, callback: TransformCallback) {
         this.buffer = Buffer.concat([this.buffer, chunk])
+        this.transforming = true
 
         let offset = 0
         let length: number
@@ -80,6 +84,16 @@ export class Reader extends Transform {
         }
 
         this.buffer = this.buffer.slice(offset)
-        return callback()
+        this.flushCb && this.flushCb()
+        this.transforming = false
+        callback()
+    }
+
+    flush(callback: () => void) {
+        if (this.transforming) {
+            this.flushCb = callback
+        } else {
+            callback()
+        }
     }
 }

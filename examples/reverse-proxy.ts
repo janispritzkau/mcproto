@@ -44,8 +44,10 @@ createServer(async serverSocket => {
         server.destroy(), client.destroy()
         serverSocket.pipe(client.socket), client.socket.pipe(serverSocket)
     }))
+
     client.onError = error => console.log(error.toString())
-    client.onClose = server.disconnect
-    server.onClose = client.disconnect
+
+    client.onClose = () => server.disconnect()
+    server.onClose = () => client.disconnect()
 }).listen(25565)
 

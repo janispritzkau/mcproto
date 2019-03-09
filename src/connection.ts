@@ -68,7 +68,10 @@ export class Connection {
 
         socket.setNoDelay(true)
         socket.on("error", err => this.handleError(err))
-        socket.on("close", () => (this.onClose && this.onClose()))
+        socket.on("close", () => {
+            this.onClose && this.onClose()
+            this.writer.end()
+        })
 
         this.socket.pipe(this.reader)
         this.writer.pipe(this.socket)
@@ -99,11 +102,14 @@ export class Connection {
     pause() {
         this.paused = true
         this.socket.pause()
+        return new Promise<void>(res => this.reader.flush(res))
     }
 
     async resume() {
+        await new Promise<any>(res => this.reader.flush(res))
         for (const packet of this.packets) {
             await Promise.resolve()
+            if (!this.socket.writable) break
             this.onPacket && this.onPacket(new PacketReader(packet))
             this.nextCallbacks.forEach(cb => cb(new PacketReader(packet)))
             this.nextCallbacks.clear()
@@ -207,6 +213,8 @@ export class Connection {
     }
 
     private packetReceived(buffer: Buffer) {
+        if (!this.socket.writable) return
+
         if (this.paused) {
             this.packets.push(buffer)
         } else {
