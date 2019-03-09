@@ -30,6 +30,7 @@ export class Connection {
     keepAlive = true
     kickTimeout = 30000
     latency = -1
+    protocol = -1
 
     paused = false
     destroyed = false
@@ -207,6 +208,7 @@ export class Connection {
     }
 
     private setProtocol(protocol: number) {
+        this.protocol = protocol
         this.keepAliveIdC = protocol < 345 ? 0x1f : 0x21
         this.keepAliveIdS = protocol < 389 ? 0xb : 0xe
         this.disconnectId = protocol < 345 ? 0x1a : 0x1b
