@@ -1,4 +1,3 @@
-import { connect } from "net"
 import * as chat from "mc-chat-format"
 import { Connection, PacketWriter } from ".."
 import { getProfile } from "./utils"
@@ -9,9 +8,8 @@ const port = +process.argv[3] || 25565
 
 const { accessToken, profile, displayName } = getProfile()
 
-const socket = connect({ host, port }, async () => {
-    socket.on("close", () => process.exit())
-    const client = new Connection(socket, { accessToken, profile })
+Connection.connect(host, port, { accessToken, profile }).then(async client => {
+    client.onClose = () => readline.close()
 
     client.send(new PacketWriter(0x0).writeVarInt(404)
     .writeString(host).writeUInt16(port).writeVarInt(2))
@@ -26,7 +24,7 @@ const socket = connect({ host, port }, async () => {
 
     client.onPacket = packet => {
         switch (packet.id) {
-            case 0xe: case 0x1b: {
+            case 0xe: {
                 console.log(chat.format(packet.readJSON(), { useAnsiCodes: true }))
             }; break
             case 0x32: {
@@ -37,11 +35,11 @@ const socket = connect({ host, port }, async () => {
         }
     }
 
-    rl.createInterface({
+    const readline = rl.createInterface({
         input: process.stdin,
         output: process.stdout
     }).on("line", line => {
         if (!line) return
         client.send(new PacketWriter(0x2).writeString(line))
     })
-})
+}).catch(error => console.log(error.toString()))

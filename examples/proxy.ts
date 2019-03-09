@@ -1,25 +1,23 @@
-import { createServer, connect } from "net"
-import { Connection, PacketWriter, Packet, State } from ".."
+import { createServer } from "net"
+import { Connection, PacketWriter, State } from ".."
 import { getProfile } from "./utils"
 
-const host = process.argv[2] || "eu.mineplex.com"
+const host = process.argv[2] || "localhost"
 const port = +process.argv[3] || 25565
 
 const { accessToken, displayName, profile } = getProfile()
 
 createServer(async serverSocket => {
-    serverSocket.on("error", err => console.error(err.message))
     const server = new Connection(serverSocket, { isServer: true })
+    server.onError = error => console.log(error.toString())
 
     const handshake = await server.nextPacket()
     server.pause()
 
-    const clientSocket = connect({ host, port }, async () => {
-        clientSocket.on("close", () => serverSocket.end())
-        serverSocket.on("close", () => clientSocket.end())
-
-        const client = new Connection(clientSocket, { accessToken, profile, keepAlive: false })
-        client.onError = error => console.error(error.message)
+    Connection.connect(host, port, { accessToken, profile, keepAlive: false }).then(async client => {
+        client.onError = error => console.log(error.toString())
+        client.onClose = server.disconnect
+        server.onClose = client.disconnect
 
         const protocol = handshake.readVarInt()
         handshake.readString(), handshake.readInt16()
@@ -33,7 +31,7 @@ createServer(async serverSocket => {
         if (server.state == State.Login) {
             client.send(new PacketWriter(0x0).writeString(displayName))
 
-            server.send(await new Promise<Packet>((resolve, reject) => {
+            server.send(await new Promise((resolve, reject) => {
                 client.onLogin = resolve, client.onDisconnect = reject
             }))
         } else if (server.state == State.Status) {
@@ -42,6 +40,5 @@ createServer(async serverSocket => {
 
         client.onPacket = packet => server.send(packet)
         server.onPacket = packet => client.send(packet)
-    })
-    clientSocket.on("error", err => console.error(err.message))
+    }).catch(error => console.log(error.toString()))
 }).listen(25565)
