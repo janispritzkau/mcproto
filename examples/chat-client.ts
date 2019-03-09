@@ -9,8 +9,6 @@ const port = +process.argv[3] || 25565
 const { accessToken, profile, displayName } = getProfile()
 
 Connection.connect(host, port, { accessToken, profile }).then(async client => {
-    client.onClose = () => readline.close()
-
     client.send(new PacketWriter(0x0).writeVarInt(404)
     .writeString(host).writeUInt16(port).writeVarInt(2))
 
@@ -42,4 +40,5 @@ Connection.connect(host, port, { accessToken, profile }).then(async client => {
         if (!line) return
         client.send(new PacketWriter(0x2).writeString(line))
     })
+    client.onClose = () => readline.close()
 }).catch(error => console.log(error.toString()))

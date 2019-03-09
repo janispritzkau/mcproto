@@ -39,7 +39,7 @@ createServer(async serverSocket => {
         .writeString(host).writeUInt16(port).writeVarInt(server.state))
 
         server.onPacket = packet => client.send(packet)
-        server.resume()
+        await server.resume()
 
         server.destroy(), client.destroy()
         serverSocket.pipe(client.socket), client.socket.pipe(serverSocket)
