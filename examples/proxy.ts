@@ -29,7 +29,7 @@ createServer(async serverSocket => {
             client.send(new PacketWriter(0x0).writeString(displayName))
 
             server.send(await new Promise((resolve, reject) => {
-                client.onLogin = resolve, client.onDisconnect = reject
+                client.nextPacketWithId(0x2).then(resolve), client.onDisconnect = reject
             }))
         } else if (server.state == State.Status) {
             client.send(packet)

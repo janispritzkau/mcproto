@@ -18,7 +18,7 @@ Connection.connect(host, port, { accessToken, profile }).then(async client => {
         console.log(chat.format(reason, { useAnsiCodes: true }))
     }
 
-    await new Promise(resolve => (client.onLogin = resolve))
+    await client.nextPacketWithId(0x2)
 
     client.onPacket = packet => {
         switch (packet.id) {

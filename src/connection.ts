@@ -39,12 +39,11 @@ export class Connection {
     profile?: string
 
     onPacket?: (packet: PacketReader) => void
-    onLogin?: (packet: PacketReader) => void
     onDisconnect?: (reason: any) => void
     onError?: (error: any) => void
     onClose?: () => void
 
-    private nextCallbacks: Set<(packet: PacketReader) => void> = new Set
+    private nextCallbacks: Set<(error: any, packet?: PacketReader) => void> = new Set
     private packets: Buffer[] = []
 
     private cipher?: Cipher
@@ -71,6 +70,7 @@ export class Connection {
         socket.on("error", err => this.handleError(err))
         socket.on("close", () => {
             this.onClose && this.onClose()
+            this.nextCallbacks.forEach(cb => cb(new Error("Connection closed")))
             this.writer.end()
         })
 
@@ -112,7 +112,7 @@ export class Connection {
             await Promise.resolve()
             if (!this.socket.writable) break
             this.onPacket && this.onPacket(new PacketReader(packet))
-            this.nextCallbacks.forEach(cb => cb(new PacketReader(packet)))
+            this.nextCallbacks.forEach(cb => cb(null, new PacketReader(packet)))
             this.nextCallbacks.clear()
         }
         this.packets.length = 0
@@ -126,13 +126,23 @@ export class Connection {
         this.writer.unpipe()
     }
 
-    nextPacket(): Promise<PacketReader> {
-        return new Promise(res => this.nextCallbacks.add(res))
+    nextPacket(timeoutMs?: number): Promise<PacketReader> {
+        return new Promise((res, rej) => {
+            let timeout: any
+            if (timeoutMs) {
+                timeout = setTimeout(() => rej(new Error("Timeout")), timeoutMs)
+            }
+            this.nextCallbacks.add((err, packet) => {
+                timeout && clearTimeout(timeout)
+                if (err) rej(err)
+                else res(packet)
+            })
+        })
     }
 
-    async nextPacketWithId(id: number) {
+    async nextPacketWithId(id: number, timeoutMs?: number) {
         while (true) {
-            const packet = await this.nextPacket()
+            const packet = await this.nextPacket(timeoutMs)
             if (packet.id == id) return packet
         }
     }
@@ -183,7 +193,7 @@ export class Connection {
         this.writer.pipe(this.cipher).pipe(this.socket)
     }
 
-    async encrypt(publicKey: Buffer, privateKey: string, username: string): Promise<boolean> {
+    async encrypt(publicKey: Buffer, privateKey: string, username: string, authenticate = true) {
         if (!this.isServer) throw new Error("Cannot be called on client connection")
         const serverId = randomBytes(4).toString("hex")
         const verifyToken = randomBytes(4)
@@ -197,14 +207,17 @@ export class Connection {
         const encryptedVerifyToken = res.read(res.readVarInt())
 
         const clientVerifyToken = privateDecrypt({ key: privateKey, padding: RSA_PKCS1_PADDING }, encryptedVerifyToken)
-        if (!verifyToken.equals(clientVerifyToken)) return (this.disconnect(), false)
+        if (!verifyToken.equals(clientVerifyToken)) {
+            this.disconnect()
+            throw new Error("Token verification failed")
+        }
         const sharedKey = privateDecrypt({ key: privateKey, padding: RSA_PKCS1_PADDING }, encryptedSharedKey)
 
-        if (!hasJoinedSession(username, serverId)) this.disconnect({
-            translate: "multiplayer.disconnect.unverified_username"
-        })
-
-        return (this.setEncryption(sharedKey), true)
+        if (authenticate && !hasJoinedSession(username, serverId)) {
+            this.disconnect({ translate: "multiplayer.disconnect.unverified_username" })
+            throw new Error("Authentication failed")
+        }
+        this.setEncryption(sharedKey)
     }
 
     private setProtocol(protocol: number) {
@@ -221,7 +234,7 @@ export class Connection {
             this.packets.push(buffer)
         } else {
             this.onPacket && this.onPacket(new PacketReader(buffer))
-            this.nextCallbacks.forEach(cb => cb(new PacketReader(buffer)))
+            this.nextCallbacks.forEach(cb => cb(null, new PacketReader(buffer)))
             this.nextCallbacks.clear()
         }
 
@@ -248,7 +261,6 @@ export class Connection {
             }
             case 0x2: {
                 this.state = State.Play
-                this.onLogin && this.onLogin(packet)
                 break
             }
             case 0x3: this.setCompression(packet.readVarInt()); break
