@@ -1,4 +1,4 @@
-import { writeVarInt, decodeVarInt } from "./varint"
+import { writeVarInt, decodeVarInt, decodeVarLong, writeVarLong } from "./varint"
 
 export type Packet = PacketReader | PacketWriter | Buffer
 
@@ -6,7 +6,7 @@ export class PacketReader {
     id: number
     offset = 0
 
-    constructor(public buffer: Buffer) {
+    constructor(public buffer: Buffer, public protocol = 404) {
         this.id = this.readVarInt()
     }
 
@@ -50,6 +50,16 @@ export class PacketReader {
         return this.buffer.readUInt32BE((this.offset += 4) - 4)
     }
 
+    readInt64() {
+        return BigInt.asIntN(64, this.readUInt64())
+    }
+
+    readUInt64() {
+        const first = BigInt(this.readUInt32())
+        const last = BigInt(this.readUInt32())
+        return (first << 32n) + last
+    }
+
     readFloat() {
         return this.buffer.readFloatBE((this.offset += 4) - 4)
     }
@@ -60,8 +70,25 @@ export class PacketReader {
 
     readVarInt() {
         const [result, offset] = decodeVarInt(this.buffer, this.offset)
-        this.offset = offset
-        return result
+        return (this.offset = offset, result)
+    }
+
+    readVarLong() {
+        const [result, offset] = decodeVarLong(this.buffer, this.offset)
+        return (this.offset = offset, result)
+    }
+
+    readPosition() {
+        const value = this.readUInt64()
+        return this.protocol < 440 ? {
+            x: Number(value >> 38n),
+            y: Number((value >> 26n) & 0xfffn),
+            z: Number(value & 0x3ffffffn)
+        } : {
+            x: Number(value >> 38n),
+            y: Number(value & 0xfffn),
+            z: Number((value >> 12n) & 0x3ffffffn)
+        }
     }
 }
 
@@ -70,7 +97,7 @@ export class PacketWriter {
     buffer = Buffer.alloc(8)
     offset = 0
 
-    constructor(public id: number) {
+    constructor(public id: number, public protocol = 404) {
         this.writeVarInt(id)
     }
 
@@ -138,6 +165,18 @@ export class PacketWriter {
         return this
     }
 
+    writeInt64(x: bigint) {
+        return this.writeUInt64(x)
+    }
+
+    writeUInt64(x: bigint) {
+        this.extend(8)
+        x = BigInt.asUintN(64, x)
+        this.offset = this.buffer.writeUInt32BE(Number(x >> 32n), this.offset)
+        this.offset = this.buffer.writeUInt32BE(Number(x & 0xffffffffn), this.offset)
+        return this
+    }
+
     writeFloat(x: number) {
         this.extend(4)
         this.offset = this.buffer.writeFloatBE(x, this.offset)
@@ -153,6 +192,18 @@ export class PacketWriter {
     writeVarInt(x: number) {
         writeVarInt(x, v => this.writeUInt8(v))
         return this
+    }
+
+    writeVarLong(x: bigint) {
+        writeVarLong(x, v => this.writeUInt8(v))
+        return this
+    }
+
+    writePosition(x: number, y: number, z: number) {
+        return this.writeUInt64(this.protocol < 440
+            ? (BigInt(x & 0x3ffffff) << 38n) | (BigInt(y & 0xfff) << 26n) | BigInt(z & 0x3ffffff)
+            : (BigInt(x & 0x3ffffff) << 38n) | (BigInt(z & 0x3ffffff) << 12n) | BigInt(y & 0xfff)
+        )
     }
 
     encode() {

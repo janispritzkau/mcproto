@@ -111,8 +111,8 @@ export class Connection {
         for (const packet of this.packets) {
             await Promise.resolve()
             if (!this.socket.writable) break
-            this.onPacket && this.onPacket(new PacketReader(packet))
-            this.nextCallbacks.forEach(cb => cb(null, new PacketReader(packet)))
+            this.onPacket && this.onPacket(new PacketReader(packet, this.protocol))
+            this.nextCallbacks.forEach(cb => cb(null, new PacketReader(packet, this.protocol)))
             this.nextCallbacks.clear()
         }
         this.packets.length = 0
@@ -233,8 +233,8 @@ export class Connection {
         if (this.paused) {
             this.packets.push(buffer)
         } else {
-            this.onPacket && this.onPacket(new PacketReader(buffer))
-            this.nextCallbacks.forEach(cb => cb(null, new PacketReader(buffer)))
+            this.onPacket && this.onPacket(new PacketReader(buffer, this.protocol))
+            this.nextCallbacks.forEach(cb => cb(null, new PacketReader(buffer, this.protocol)))
             this.nextCallbacks.clear()
         }
 
