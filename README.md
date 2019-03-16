@@ -13,6 +13,7 @@ packets usually don't change from version to version.
 - Encryption for client and server
 - Helper classes for writing / reading packets.
 - Asynchronous method for reading the next packet.
+- VarLong and 64 bit data types using [BigInts](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/BigInt)
 
 ## Examples
 
@@ -57,10 +58,11 @@ const socket = connect({ host, port }, async () => {
     client.send(new PacketWriter(0x0).writeString(displayName))
 
     client.onDisconnect = reason => console.log(reason)
-    await new Promise(resolve => (client.onLogin = resolve))
+    // login success
+    await client.nextPacketWithId(0x2)
 
     client.onPacket = packet => {
-        // Chat message or disconnect
+        // chat message or disconnect
         if (packet.id == 0xe || packet.id == 0x1b) {
             console.log(packet.readJSON())
         }
