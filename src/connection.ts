@@ -68,7 +68,7 @@ export class Connection {
 
         socket.setNoDelay(true)
         socket.on("error", err => this.handleError(err))
-        socket.on("close", () => {
+        socket.on("end", () => {
             this.onClose && this.onClose()
             this.nextCallbacks.forEach(cb => cb(new Error("Connection closed")))
             this.writer.end()
@@ -161,6 +161,7 @@ export class Connection {
             this.state = reader.readVarInt()
         } else if (this.isServer && this.state == State.Login) {
             if (reader.id == 0x2) if (this.keepAlive) this.startKeepAlive()
+            this.state = State.Play
         }
 
         return new Promise((res, rej) => this.writer.write(buffer, err => {
