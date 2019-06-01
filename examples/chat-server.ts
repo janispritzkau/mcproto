@@ -1,89 +1,62 @@
-import { createServer } from "net"
-import { Connection, PacketWriter, State } from ".."
-import { generateKeyPairSync, RSAKeyPairOptions } from "crypto"
+import { Server, State, Connection, PacketWriter } from "../src"
 import * as chat from "mc-chat-format"
-import * as rl from "readline"
-
-const port = +process.argv[2] || 25565
-
-const { privateKey, publicKey } = generateKeyPairSync("rsa", {
-    modulusLength: 1024,
-    publicKeyEncoding: { type: "spki", format: "der" },
-    privateKeyEncoding: { type: "pkcs8", format: "pem" }
-} as RSAKeyPairOptions<"der", "pem">)
 
 const clients: Set<Connection> = new Set
 
-createServer(async socket => {
-    const client = new Connection(socket, { isServer: true })
-    client.onError = error => console.log(error.toString())
-
-    const handshake = await client.nextPacket()
-    const protocol = handshake.readVarInt()
+const server = new Server(async client => {
+    client.socket.on("error", console.log)
+    await client.nextPacket()
 
     if (client.state == State.Status) {
-        client.onPacket = packet => {
-            if (packet.id == 0x0) client.send(new PacketWriter(0x0).writeJSON({
-                version: { name: "1.32.2", protocol: 404 },
-                players: { max: -1, online: clients.size },
-                description: { text: "Chat server" }
-            }))
-            else if (packet.id == 0x1)
-                client.send(new PacketWriter(0x1).write(packet.read(8)))
-        }
-        return setTimeout(() => socket.end(), 10000)
+        client.onPacket(0x0, () => client.send(new PacketWriter(0x0).writeJSON({
+            version: { name: "1.13.2", protocol: 404 },
+            players: { max: -1, online: clients.size },
+            description: { text: "Chat server" }
+        })))
+        return client.onPacket(0x1, packet => {
+            client.send(new PacketWriter(0x1).writeInt64(packet.readInt64()))
+        })
     }
 
-    const username = (await client.nextPacket()).readString()
-
-    if (protocol != 404) return client.disconnect({
+    if (client.protocol != 404) return client.end(new PacketWriter(0x0).writeJSON({
         translate: "multiplayer.disconnect."
-        + (protocol < 404 ? "outdated_client" : "outdated_server"),
+            + (client.protocol < 404 ? "outdated_client" : "outdated_server"),
         with: ["1.13.2"]
-    })
+    }))
 
-    await client.encrypt(publicKey, privateKey, username)
+    const username = (await client.nextPacket(0x0)).readString()
+
+    await server.encrypt(client, username)
     client.setCompression(256)
 
-    // Login success
     client.send(new PacketWriter(0x2)
-    .writeString("00000000-0000-0000-0000-000000000000").writeString(username))
+        .writeString("00000000-0000-0000-0000-000000000000").writeString(username))
 
-    // Join game
     client.send(new PacketWriter(0x25)
-    .writeInt32(0).writeUInt8(3).writeInt32(1).writeUInt16(0)
-    .writeString("flat").writeBool(true))
+        .writeInt32(0).writeUInt8(3).writeInt32(1).writeUInt16(0)
+        .writeString("flat").writeBool(true))
 
-    // Player position and look
     client.send(new PacketWriter(0x32).write(Buffer.alloc(8 * 3 + 4 * 2 + 2)))
 
     clients.add(client)
 
-    client.onClose = () => {
+    client.onEnd(() => {
         clients.delete(client)
         broadcast({ translate: "multiplayer.player.left", with: [username] })
-    }
+    })
 
     broadcast({ translate: "multiplayer.player.joined", with: [username] }, client)
 
-    client.onPacket = packet => {
-        if (packet.id == 0x2) broadcast({
-            translate: "chat.type.text", with: [username, packet.readString()]
-        })
-    }
-}).listen(port)
-
-rl.createInterface({
-    input: process.stdin,
-    output: process.stdout
-}).on("line", line => {
-    if (line) broadcast({ translate: "chat.type.announcement",with: ["Server", line] })
+    client.onPacket(0x2, packet => broadcast({
+        translate: "chat.type.text", with: [username, packet.readString()]
+    }))
 })
+server.listen(25565)
 
-function broadcast(text: any, exclude?: Connection) {
-    console.log(chat.format(text, { useAnsiCodes: true }))
+function broadcast(text: chat.Component, exclude?: Connection) {
     clients.forEach(client => {
         if (exclude == client) return
         client.send(new PacketWriter(0xe).writeJSON(text).writeInt8(0))
     })
+    console.log(chat.format(text))
 }

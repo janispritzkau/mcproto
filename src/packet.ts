@@ -2,12 +2,21 @@ import { writeVarInt, decodeVarInt, decodeVarLong, writeVarLong } from "./varint
 
 export type Packet = PacketReader | PacketWriter | Buffer
 
+export const getPacketIdMap = (v: number) => ({
+    keepAliveC: v < 389 ? 0x1f : 0x21,
+    keepAliveS: v < 389 ? 0xb : 0xe
+})
+
 export class PacketReader {
     id: number
     offset = 0
 
     constructor(public buffer: Buffer, public protocol = 404) {
         this.id = this.readVarInt()
+    }
+
+    clone() {
+        return new PacketReader(this.buffer, this.protocol)
     }
 
     read(length: number) {
