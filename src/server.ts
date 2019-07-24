@@ -24,8 +24,8 @@ export class Server extends Emitter {
     options: ServerOptions
     server = new net.Server
 
-    privateKey: string
-    publicKey: Buffer
+    privateKey?: string
+    publicKey?: Buffer
 
     constructor(handler?: ClientHandler)
     constructor(options?: ServerOptions, handler?: ClientHandler)
@@ -34,11 +34,13 @@ export class Server extends Emitter {
         if (typeof options == "function") handler = options, options = undefined
         if (handler) this.onConnection(handler)
 
-        this.options = { keepAlive: true, kickTimeout: 20000, ...options }
+        this.options = { ...defaultOptions, ...options }
 
         this.server.on("connection", this.clientConnected.bind(this));
 
-        ({ publicKey: this.publicKey, privateKey: this.privateKey } = generateKeyPair())
+        if (this.options.generateKeyPair) {
+            ({ publicKey: this.publicKey, privateKey: this.privateKey } = generateKeyPair())
+        }
     }
 
     static async encrypt(client: Connection, publicKey: Buffer, privateKey: string, username: string, verify = true) {
@@ -84,7 +86,8 @@ export class Server extends Emitter {
     }
 
     encrypt(client: Connection, username: string, verify = true) {
-        return Server.encrypt(client, this.publicKey, this.privateKey, username, verify)
+        if (!this.publicKey || !this.privateKey) throw new Error("Public/private keypair was not generated")
+        return Server.encrypt(client, this.publicKey, this.privateKey!, username, verify)
     }
 
     private async clientConnected(socket: net.Socket) {
