@@ -111,13 +111,14 @@ export class Connection extends Emitter<Events> {
 
     nextPacket(id?: number, expectNext = true): Promise<PacketReader> {
         return new Promise((resolve, reject) => {
+            const disposeOnEnd = this.onEnd(() => (reject(new Error("Server closed")), dispose()))
             const dispose = this.on(Event.Packet, packet => {
                 if (id == null || packet.id == id) {
                     resolve(packet)
-                    dispose()
+                    dispose(), disposeOnEnd()
                 } else if (expectNext && id != null && packet.id != id) {
                     reject(new Error(`Expected packet with id ${id} but got ${packet.id}`))
-                    dispose()
+                    dispose(), disposeOnEnd()
                 }
             })
         })

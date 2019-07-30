@@ -15,6 +15,7 @@ export class Emitter<Events = {[key in string | number]: any}> {
             handler(value)
             removeListener()
         })
+        return removeListener
     }
 
     removeListener<T extends keyof Events>(event: T, handler: Handler<Events[T]>) {

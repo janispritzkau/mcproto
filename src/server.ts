@@ -18,7 +18,7 @@ const defaultOptions = {
     generateKeyPair: true
 }
 
-type ClientHandler = (client: Connection, server: Server) => void
+type ClientHandler = (client: Connection, server: Server) => void | Promise<void>
 
 export class Server extends Emitter {
     options: ServerOptions
@@ -82,7 +82,14 @@ export class Server extends Emitter {
     }
 
     onConnection(handler: ClientHandler) {
-        return this.on("connection", client => handler(client, this))
+        return this.on("connection", client => {
+            const ret = handler(client, this)
+            if (ret instanceof Promise) {
+                ret.catch(error => {
+                    console.error("Unhandled error", error)
+                })
+            }
+        })
     }
 
     encrypt(client: Connection, username: string, verify = true) {
