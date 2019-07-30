@@ -20,7 +20,7 @@ async function main() {
         console.log(chat.format(packet.readJSON(), { useAnsiCodes: true }))
     })
 
-    await client.nextPacket(0x2)
+    await client.nextPacket(0x2, false)
     dispose()
 
     console.log("logged in")

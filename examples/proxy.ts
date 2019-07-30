@@ -1,41 +1,42 @@
-import { createServer } from "net"
-import { Connection, PacketWriter, State } from ".."
+import { PacketWriter, State, Client, Server } from "../src"
 import { getProfile } from "./utils"
 
 const host = process.argv[2] || "localhost"
-const port = +process.argv[3] || 25566
+const port = +process.argv[3] || (process.argv[2] ? 25566 : 25565)
 
 const { accessToken, displayName, profile } = getProfile()
 
-createServer(async serverSocket => {
-    const server = new Connection(serverSocket, { isServer: true, keepAlive: false })
-    server.onError = error => console.log(error.toString())
+new Server({ keepAlive: true }, async conn => {
+    conn.onError(console.error)
 
-    const protocol = (await server.nextPacket()).readVarInt()
-    server.pause()
+    const protocol = (await conn.nextPacket()).readVarInt()
+    conn.pause()
 
-    Connection.connect(host, port, { accessToken, profile, keepAlive: false }).then(async client => {
-        client.onError = error => console.log(error.toString())
-        client.onClose = () => server.disconnect()
-        server.onClose = () => client.disconnect()
+    let client: Client
+    try { client = await Client.connect(port, host, { accessToken, profile, keepAlive: false }) }
+    catch { return conn.end() }
 
-        client.send(new PacketWriter(0x0).writeVarInt(protocol)
-        .writeString(host).writeUInt16(port).writeVarInt(server.state))
+    client.onError(console.error)
 
-        server.resume()
-        const packet = await server.nextPacket()
+    client.onEnd(() => conn.end())
+    conn.onEnd(() => client.end())
 
-        if (server.state == State.Login) {
-            client.send(new PacketWriter(0x0).writeString(displayName))
+    client.send(new PacketWriter(0x0).writeVarInt(protocol)
+        .writeString(host).writeUInt16(port)
+        .writeVarInt(conn.state))
 
-            server.send(await new Promise((resolve, reject) => {
-                client.nextPacketWithId(0x2).then(resolve), client.onDisconnect = reject
-            }))
-        } else if (server.state == State.Status) {
-            client.send(packet)
-        }
+    conn.resume()
+    const packet = await conn.nextPacket()
 
-        client.onPacket = packet => server.send(packet)
-        server.onPacket = packet => client.send(packet)
-    }).catch(error => (console.log(error.toString()), server.disconnect()))
+    if (conn.state == State.Login) {
+        client.send(new PacketWriter(0x0).writeString(displayName))
+        // wait for login success
+        await client.nextPacket(0x2, false)
+
+    } else if (conn.state == State.Status) {
+        client.send(packet)
+    }
+
+    client.onPacket(packet => conn.send(packet))
+    conn.onPacket(packet => client.send(packet))
 }).listen(25565)
