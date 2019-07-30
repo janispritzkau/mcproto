@@ -18,7 +18,7 @@ const defaultOptions = {
     generateKeyPair: true
 }
 
-type ClientHandler = (client: Connection) => void
+type ClientHandler = (client: Connection, server: Server) => void
 
 export class Server extends Emitter {
     options: ServerOptions
@@ -82,7 +82,7 @@ export class Server extends Emitter {
     }
 
     onConnection(handler: ClientHandler) {
-        return this.on("connection", handler)
+        return this.on("connection", client => handler(client, this))
     }
 
     encrypt(client: Connection, username: string, verify = true) {
@@ -93,8 +93,6 @@ export class Server extends Emitter {
     private async clientConnected(socket: net.Socket) {
         const client = new Connection(socket, true)
         this.emit("connection", client)
-
-        await client.nextPacket(0x2)
     }
 }
 

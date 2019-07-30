@@ -109,10 +109,16 @@ export class Connection extends Emitter<Events> {
         this.writer.unpipe()
     }
 
-    nextPacket(id?: number): Promise<PacketReader> {
-        return new Promise(resolve => {
+    nextPacket(id?: number, expectNext = true): Promise<PacketReader> {
+        return new Promise((resolve, reject) => {
             const dispose = this.on(Event.Packet, packet => {
-                if (id == null || packet.id == id) resolve(packet), dispose()
+                if (id == null || packet.id == id) {
+                    resolve(packet)
+                    dispose()
+                } else if (expectNext && id != null && packet.id != id) {
+                    reject(new Error(`Expected packet with id ${id} but got ${packet.id}`))
+                    dispose()
+                }
             })
         })
     }
