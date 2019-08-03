@@ -18,7 +18,7 @@ const defaultOptions = {
     generateKeyPair: true
 }
 
-type ClientHandler = (client: Connection, server: Server) => void | Promise<void>
+type ClientHandler = (client: Connection, server: Server) => void | Promise<any>
 
 export class Server extends Emitter {
     options: ServerOptions
