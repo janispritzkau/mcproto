@@ -12,9 +12,9 @@ export interface ClientOptions {
 }
 
 export class Client extends Connection {
-    static connect(port: number, host?: string, options?: ClientOptions) {
+    static connect(host: string, port?: number, options?: ClientOptions) {
         const client = new Client(options)
-        return client.connect(port, host)
+        return client.connect(host, port)
     }
 
     options: ClientOptions
@@ -25,7 +25,7 @@ export class Client extends Connection {
         this.onChangeState(this.stateChanged.bind(this))
     }
 
-    async connect(port: number, host?: string) {
+    async connect(host: string, port?: number) {
         if (!port) port = await new Promise<number>(resolve => {
             dns.resolveSrv("_minecraft._tcp." + host, (err, addrs) => {
                 if (err || addrs.length == 0) return resolve(25565)
@@ -35,7 +35,7 @@ export class Client extends Connection {
         })
         return new Promise<this>((resolve, reject) => {
             this.socket.once("error", reject)
-            this.socket.connect({ host, port }, () => {
+            this.socket.connect({ host, port: port! }, () => {
                 this.socket.removeListener("error", reject)
                 resolve(this)
             })
