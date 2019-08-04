@@ -1,27 +1,28 @@
 import * as net from "net"
 import { Emitter } from "./events"
 import { Connection } from "."
-import { PacketWriter } from "./packet"
+import { PacketWriter, getPacketIdMap } from "./packet"
 import { generateKeyPairSync, RSAKeyPairOptions, randomBytes, privateDecrypt } from "crypto";
 import { hasJoinedSession } from "./utils";
 import { RSA_PKCS1_PADDING } from "constants";
+import { State } from "./connection";
 
 export interface ServerOptions {
     keepAlive?: boolean
-    kickTimeout?: number
+    keepAliveInterval?: number
     generateKeyPair?: boolean
 }
 
-const defaultOptions = {
+const defaultOptions: Required<ServerOptions> = {
     keepAlive: true,
-    kickTimeout: 20000,
+    keepAliveInterval: 10000,
     generateKeyPair: true
 }
 
-type ClientHandler = (client: Connection, server: Server) => void | Promise<any>
+type ClientHandler = (client: ServerConnection, server: Server) => void | Promise<any>
 
 export class Server extends Emitter {
-    options: ServerOptions
+    options: Required<ServerOptions>
     server = new net.Server
 
     privateKey?: string
@@ -98,8 +99,43 @@ export class Server extends Emitter {
     }
 
     private async clientConnected(socket: net.Socket) {
-        const client = new Connection(socket, true)
+        const client = new ServerConnection(socket, this)
         this.emit("connection", client)
+    }
+}
+
+export class ServerConnection extends Connection {
+    constructor(socket: net.Socket, public server: Server) {
+        super(socket, true)
+
+        this.onChangeState(state => {
+            if (state == State.Play && server.options.keepAlive) {
+                this.startKeepAlive()
+            }
+        })
+    }
+
+    startKeepAlive() {
+        const ids = getPacketIdMap(this.protocol)
+
+        let id: bigint | null = null
+        const keepAliveInterval = setInterval(() => {
+            if (id) {
+                this.end(new PacketWriter(0x0).writeJSON({ text: "Timed out" }))
+            }
+            id = BigInt(Date.now())
+            this.send(new PacketWriter(ids.keepAliveC).writeUInt64(id))
+        }, this.server.options.keepAliveInterval)
+
+        this.onPacket(ids.keepAliveS, packet => {
+            if (packet.readUInt64() == id) id = null
+        })
+
+        this.onEnd(() => clearInterval(keepAliveInterval))
+    }
+
+    encrypt(username: string, verify = true) {
+        return this.server.encrypt(this, username, verify)
     }
 }
 

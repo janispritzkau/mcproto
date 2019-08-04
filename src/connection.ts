@@ -136,6 +136,11 @@ export class Connection extends Emitter<Events> {
             this.setState(handshake.readVarInt())
         }
 
+        if (this.isServer && this.state == State.Login) {
+            const packet = new PacketReader(buffer)
+            if (packet.id == 0x2) this.setState(State.Play)
+        }
+
         return new Promise((res, rej) => this.writer.write(buffer, err => {
             if (err) rej(err)
             else res()
