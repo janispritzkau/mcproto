@@ -1,33 +1,43 @@
-type Handler<T> = (value: T) => void
+type Args<T> = [T] extends [(...args: infer U) => any] ? U : [T] extends [void] ? [] : [T]
 
-export class Emitter<Events = {[key in string | number]: any}> {
-    protected handlers = new Map<any, Set<Handler<any>>>()
+export interface Disposable {
+    dispose(): boolean
+}
 
-    on<T extends keyof Events>(event: T, handler: Handler<Events[T]>) {
+export class Emitter<Events extends { [key in string]: any }> {
+    protected handlers = new Map<any, Set<(...args: any) => any>>()
+
+    on<T extends keyof Events>(event: T, handler: Events[T]): Disposable {
         let handlers = this.handlers.get(event)
+
         if (handlers) handlers.add(handler)
-        else (handlers = new Set([handler]), this.handlers.set(event, handlers))
-        return () => this.removeListener(event, handler)
+        else this.handlers.set(event, new Set([handler]))
+
+        return {
+            dispose: () => this.removeListener(event, handler)
+        }
     }
 
-    once<T extends keyof Events>(event: T, handler: Handler<Events[T]>) {
-        const removeListener = this.on(event, value => {
-            handler(value)
-            removeListener()
-        })
-        return removeListener
+    once<T extends keyof Events>(event: T, handler: Events[T]): Disposable {
+        const listener = this.on(event, <any>((...args: any[]) => {
+            handler(...args)
+            listener.dispose()
+        }))
+        return listener
     }
 
-    removeListener<T extends keyof Events>(event: T, handler: Handler<Events[T]>) {
+    off<T extends keyof Events>(event: T, handler: Events[T]) {
         const handlers = this.handlers.get(event)
         if (!handlers) return false
         return handlers.delete(handler)
     }
 
-    emit<T extends keyof Events>(event: T, value: Events[T]) {
+    removeListener = this.off
+
+    emit<T extends keyof Events>(event: T, ...args: Args<Events[T]>) {
         const handlers = this.handlers.get(event)
         if (!handlers) return false;
-        [...handlers].forEach(cb => cb(value))
+        [...handlers].forEach(cb => cb(...args))
         return true
     }
 }

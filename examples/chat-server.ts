@@ -26,7 +26,7 @@ const server = new Server(async client => {
 
     const username = (await client.nextPacket(0x0)).readString()
 
-    await server.encrypt(client, username)
+    await client.encrypt(username)
     client.setCompression(256)
 
     client.send(new PacketWriter(0x2)
@@ -40,7 +40,7 @@ const server = new Server(async client => {
 
     clients.add(client)
 
-    client.onEnd(() => {
+    client.on("end", () => {
         clients.delete(client)
         broadcast({ translate: "multiplayer.player.left", with: [username] })
     })

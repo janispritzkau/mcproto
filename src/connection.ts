@@ -11,23 +11,14 @@ export enum State {
     Play = 3
 }
 
-enum Event {
-    Packet,
-    ChangeState,
-    Error,
-    End
-}
-
 interface Events {
-    [Event.Packet]: PacketReader
-    [Event.ChangeState]: number
-    [Event.Error]: any
-    [Event.End]: void
+    packet: (packet: PacketReader) => void
+    changeState: (state: number) => void
+    error: (error: any) => void
+    end: () => void
 }
 
 export class Connection extends Emitter<Events> {
-    static Event = Event
-
     state = State.Handshake
     protocol = -1
 
@@ -44,10 +35,10 @@ export class Connection extends Emitter<Events> {
         super()
         socket.setNoDelay(true)
         socket.on("end", () => {
-            this.emit(Event.End, undefined)
+            this.emit("end")
             this.writer.end()
         })
-        socket.on("error", error => this.emit(Event.Error, error))
+        socket.on("error", error => this.emit("error", error))
 
         this.socket.pipe(this.reader)
         this.writer.pipe(this.socket)
@@ -56,34 +47,18 @@ export class Connection extends Emitter<Events> {
         this.reader.on("close", () => this.writer.end())
     }
 
-    onPacket(id: number, handler: (packet: PacketReader) => void): () => boolean
-    onPacket(handler: (packet: PacketReader) => void): () => boolean
-    onPacket(id: any, handler?: any) {
-        if (typeof id == "function") handler = id, id = undefined
-
-        return this.on(Event.Packet, packet => {
+    onPacket(id: number, handler: (packet: PacketReader) => void) {
+        return this.on("packet", packet => {
             if (id == null || packet.id == id) handler(packet.clone())
         })
     }
 
     oncePacket(id: number, handler: (packet: PacketReader) => void) {
-        const dispose = this.onPacket(id, packet => {
+        const listener = this.onPacket(id, packet => {
             handler(packet)
-            dispose()
+            listener.dispose()
         })
-        return dispose
-    }
-
-    onChangeState(handler: (state: number) => void) {
-        return this.on(Event.ChangeState, handler)
-    }
-
-    onError(handler: (error: any) => void) {
-        return this.on(Event.Error, handler)
-    }
-
-    onEnd(handler: () => void) {
-        return this.on(Event.End, handler)
+        return listener
     }
 
     pause() {
@@ -97,7 +72,7 @@ export class Connection extends Emitter<Events> {
         for (const packet of this.packets) {
             await Promise.resolve()
             if (!this.socket.writable) break
-            this.emit(Event.Packet, new PacketReader(packet, this.protocol))
+            this.emit("packet", new PacketReader(packet, this.protocol))
         }
         this.packets.length = 0
         this.paused = false
@@ -111,14 +86,14 @@ export class Connection extends Emitter<Events> {
 
     nextPacket(id?: number, expectNext = true): Promise<PacketReader> {
         return new Promise((resolve, reject) => {
-            const disposeOnEnd = this.onEnd(() => (reject(new Error("Server closed")), dispose()))
-            const dispose = this.on(Event.Packet, packet => {
+            const endL = this.on("end", () => (reject(new Error("Server closed")), listener.dispose()))
+            const listener = this.on("packet", packet => {
                 if (id == null || packet.id == id) {
                     resolve(packet)
-                    dispose(), disposeOnEnd()
+                    listener.dispose(), endL.dispose()
                 } else if (expectNext && id != null && packet.id != id) {
                     reject(new Error(`Expected packet with id ${id} but got ${packet.id}`))
-                    dispose(), disposeOnEnd()
+                    listener.dispose(), endL.dispose()
                 }
             })
         })
@@ -168,7 +143,7 @@ export class Connection extends Emitter<Events> {
     }
 
     private setState(state: number) {
-        if (this.state != state) this.emit(Event.ChangeState, state)
+        if (this.state != state) this.emit("changeState", state)
         this.state = state
     }
 
@@ -176,7 +151,7 @@ export class Connection extends Emitter<Events> {
         if (!this.socket.writable) return
 
         if (this.paused) this.packets.push(buffer)
-        else this.emit(Event.Packet, new PacketReader(buffer, this.protocol))
+        else this.emit("packet", new PacketReader(buffer, this.protocol))
 
         const packet = new PacketReader(buffer)
 

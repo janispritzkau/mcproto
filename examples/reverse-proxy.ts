@@ -6,7 +6,7 @@ const servers: { [key: string]: { host: string, port: number } } = {
 }
 
 new Server(async conn => {
-    conn.onError(console.error)
+    conn.on("error", console.error)
 
     const handshake = await conn.nextPacket()
     const protocol = handshake.readVarInt(), address = handshake.readString()
@@ -32,16 +32,16 @@ new Server(async conn => {
     const { host, port } = serverAddr
 
     let client: Client
-    try { client = await Client.connect(port, host) }
+    try { client = await Client.connect(host, port) }
     catch { return conn.end() }
 
-    client.onError(console.error)
+    client.on("error", console.error)
 
     client.send(new PacketWriter(0x0).writeVarInt(protocol)
         .writeString(host).writeUInt16(port)
         .writeVarInt(conn.state))
 
-    conn.onPacket(packet => client.send(packet))
+    conn.on("packet", packet => client.send(packet))
     await conn.resume()
 
     conn.unpipe(), client.unpipe()

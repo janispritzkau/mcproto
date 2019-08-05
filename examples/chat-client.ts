@@ -9,23 +9,23 @@ const port = +process.argv[3] || 25565
 const { accessToken, profile, displayName } = getProfile()
 
 async function main() {
-    const client = await Client.connect(port, host, { accessToken, profile })
+    const client = await Client.connect(host, port, { accessToken, profile })
     console.log("connected")
 
     client.send(new PacketWriter(0x0).writeVarInt(404)
         .writeString(host).writeUInt16(port).writeVarInt(State.Login))
     client.send(new PacketWriter(0x0).writeString(displayName))
 
-    const dispose = client.onPacket(0x0, packet => {
+    const listener = client.onPacket(0x0, packet => {
         console.log(chat.format(packet.readJSON(), { useAnsiCodes: true }))
     })
 
     await client.nextPacket(0x2, false)
-    dispose()
+    listener.dispose()
 
     console.log("logged in")
 
-    client.onPacket(packet => {
+    client.on("packet", packet => {
         if (packet.id == 0xe || packet.id == 0x1b) {
             console.log(chat.format(packet.readJSON(), { useAnsiCodes: true }))
         } else if (packet.id == 0x32) {
@@ -42,7 +42,7 @@ async function main() {
         if (!line) return
         client.send(new PacketWriter(0x2).writeString(line))
     })
-    client.onEnd(() => readline.close())
+    client.on("end", () => readline.close())
 }
 
 main().catch(console.error)

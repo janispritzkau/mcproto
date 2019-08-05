@@ -22,7 +22,7 @@ export class Client extends Connection {
     constructor(options?: ClientOptions) {
         super(new Socket, false)
         this.options = { keepAlive: true, ...options }
-        this.onChangeState(this.stateChanged.bind(this))
+        this.on("changeState", this.stateChanged.bind(this))
     }
 
     async connect(host: string, port?: number) {
@@ -46,8 +46,8 @@ export class Client extends Connection {
     private stateChanged(state: State) {
         if (state == State.Login) {
             const disposeListener = this.onPacket(0x1, this.onEncryptionRequest.bind(this))
-            this.once(Connection.Event.ChangeState, disposeListener)
-        } else if (state == State.Play) {
+            this.once("changeState", disposeListener.dispose)
+        } else if (state == State.Play && this.options.keepAlive) {
             const ids = getPacketIdMap(this.protocol)
             this.onPacket(ids.keepAliveC, packet => {
                 this.send(new PacketWriter(ids.keepAliveS).writeInt64(packet.readInt64()))
@@ -68,7 +68,7 @@ export class Client extends Connection {
             .digest())
 
         if (!await joinSession(this.options.accessToken!, this.options.profile!, hashedServerId)) {
-            this.emit(Connection.Event.Error, new Error("Invalid access token"))
+            this.emit("error", new Error("Invalid access token"))
         }
 
         const key = mcPublicKeyToPem(publicKey)

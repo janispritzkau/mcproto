@@ -19,31 +19,14 @@ const defaultOptions: Required<ServerOptions> = {
     generateKeyPair: true
 }
 
-type ClientHandler = (client: ServerConnection, server: Server) => void | Promise<any>
+type ClientHandler = (client: ServerConnection) => Promise<any> | void
 
-export class Server extends Emitter {
-    options: Required<ServerOptions>
-    server = new net.Server
+interface Events {
+    connection: (client: ServerConnection) => void
+    error: (error?: any) => void
+}
 
-    privateKey?: string
-    publicKey?: Buffer
-
-    constructor(handler?: ClientHandler)
-    constructor(options?: ServerOptions, handler?: ClientHandler)
-    constructor(options?: ServerOptions | ClientHandler, handler?: ClientHandler) {
-        super()
-        if (typeof options == "function") handler = options, options = undefined
-        if (handler) this.onConnection(handler)
-
-        this.options = { ...defaultOptions, ...options }
-
-        this.server.on("connection", this.clientConnected.bind(this));
-
-        if (this.options.generateKeyPair) {
-            ({ publicKey: this.publicKey, privateKey: this.privateKey } = generateKeyPair())
-        }
-    }
-
+export class Server extends Emitter<Events> {
     static async encrypt(client: Connection, publicKey: Buffer, privateKey: string, username: string, verify = true) {
         const serverId = randomBytes(4).toString("hex")
         const verifyToken = randomBytes(4)
@@ -63,7 +46,7 @@ export class Server extends Emitter {
         }
         const sharedKey = privateDecrypt({ key: privateKey, padding: RSA_PKCS1_PADDING }, encryptedSharedKey)
 
-        if (verify && !hasJoinedSession(username, serverId)) {
+        if (verify && !await hasJoinedSession(username, serverId)) {
             client.end(new PacketWriter(0x0).writeJSON({
                 translate: "multiplayer.disconnect.unverified_username"
             }))
@@ -72,35 +55,55 @@ export class Server extends Emitter {
         client.setEncryption(sharedKey)
     }
 
+    options: Required<ServerOptions>
+    server = new net.Server
+
+    privateKey?: string
+    publicKey?: Buffer
+
+    constructor(handler?: ClientHandler)
+    constructor(options?: ServerOptions, handler?: ClientHandler)
+    constructor(options?: ServerOptions | ClientHandler, handler?: ClientHandler) {
+        super()
+        if (typeof options == "function") handler = options, options = undefined
+        this.options = { ...defaultOptions, ...options }
+
+        if (handler) this.on("connection", client => {
+            const handleError = (error: any) => {
+                if (!this.emit("error", error)) {
+                    console.error("Unhandled connection error:", error)
+                }
+            }
+            try {
+                const ret = handler!(client)
+                if (ret instanceof Promise) ret.catch(handleError)
+            } catch (error) {
+                handleError(error)
+            }
+        })
+
+        this.server.on("error", error => {
+            if (!this.emit("error", error)) {
+                throw error
+            }
+        })
+        this.server.on("connection", socket => {
+            this.emit("connection", new ServerConnection(socket, this))
+        })
+
+        if (this.options.generateKeyPair) {
+            ({ publicKey: this.publicKey, privateKey: this.privateKey } = generateKeyPair())
+        }
+    }
+
     listen(port: number, host?: string) {
         return new Promise<this>((resolve, reject) => {
             this.server.once("error", reject)
             this.server.listen(port, host, () => {
-                this.server.removeListener("error", reject)
+                this.server.off("error", reject)
                 resolve(this)
             })
         })
-    }
-
-    onConnection(handler: ClientHandler) {
-        return this.on("connection", client => {
-            const ret = handler(client, this)
-            if (ret instanceof Promise) {
-                ret.catch(error => {
-                    console.error("Unhandled error", error)
-                })
-            }
-        })
-    }
-
-    encrypt(client: Connection, username: string, verify = true) {
-        if (!this.publicKey || !this.privateKey) throw new Error("Public/private keypair was not generated")
-        return Server.encrypt(client, this.publicKey, this.privateKey!, username, verify)
-    }
-
-    private async clientConnected(socket: net.Socket) {
-        const client = new ServerConnection(socket, this)
-        this.emit("connection", client)
     }
 }
 
@@ -108,7 +111,7 @@ export class ServerConnection extends Connection {
     constructor(socket: net.Socket, public server: Server) {
         super(socket, true)
 
-        this.onChangeState(state => {
+        this.on("changeState", state => {
             if (state == State.Play && server.options.keepAlive) {
                 this.startKeepAlive()
             }
@@ -131,11 +134,17 @@ export class ServerConnection extends Connection {
             if (packet.readUInt64() == id) id = null
         })
 
-        this.onEnd(() => clearInterval(keepAliveInterval))
+        this.on("end", () => clearInterval(keepAliveInterval))
     }
 
     encrypt(username: string, verify = true) {
-        return this.server.encrypt(this, username, verify)
+        const { server } = this
+
+        if (!server.publicKey || !server.privateKey) {
+            throw new Error("Public/private keypair was not generated")
+        }
+
+        return Server.encrypt(this, server.publicKey, server.privateKey, username, verify)
     }
 }
 
