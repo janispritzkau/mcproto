@@ -10,9 +10,8 @@ const { accessToken, profile, displayName } = getProfile()
 
 async function main() {
     const client = await Client.connect(host, port, { accessToken, profile })
-    console.log("connected")
 
-    client.send(new PacketWriter(0x0).writeVarInt(404)
+    client.send(new PacketWriter(0x0).writeVarInt(498)
         .writeString(host).writeUInt16(port).writeVarInt(State.Login))
     client.send(new PacketWriter(0x0).writeString(displayName))
 
@@ -23,12 +22,10 @@ async function main() {
     await client.nextPacket(0x2, false)
     listener.dispose()
 
-    console.log("logged in")
-
     client.on("packet", packet => {
-        if (packet.id == 0xe || packet.id == 0x1b) {
+        if (packet.id == 0xe || packet.id == 0x1a) {
             console.log(chat.format(packet.readJSON(), { useAnsiCodes: true }))
-        } else if (packet.id == 0x32) {
+        } else if (packet.id == 0x35) {
             packet.read(3 * 8 + 2 * 4 + 1)
             const teleportId = packet.readVarInt()
             client.send(new PacketWriter(0x0).writeVarInt(teleportId))
@@ -40,7 +37,7 @@ async function main() {
         output: process.stdout
     }).on("line", line => {
         if (!line) return
-        client.send(new PacketWriter(0x2).writeString(line))
+        client.send(new PacketWriter(0x3).writeString(line))
     })
     client.on("end", () => readline.close())
 }
