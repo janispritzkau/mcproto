@@ -1,6 +1,6 @@
 {
   "name": "mcproto",
-  "version": "0.6.4",
+  "version": "0.7.0",
   "description": "Small Minecraft protocol implementation",
   "main": "lib",
   "types": "lib",
@@ -15,8 +15,8 @@
     "minecraft",
     "protocol"
   ],
-  "author": "Janis Pritzkau",
-  "license": "ISC",
+  "author": "Janis Pritzkau <janispritzkau@gmail.com>",
+  "license": "MIT",
   "devDependencies": {
     "@types/node": "^10.14.14",
     "@types/node-fetch": "^2.5.0",

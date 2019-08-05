@@ -116,9 +116,9 @@ export class Connection extends Emitter<Events> {
             if (packet.id == 0x2) this.setState(State.Play)
         }
 
-        return new Promise((res, rej) => this.writer.write(buffer, err => {
-            if (err) rej(err)
-            else res()
+        return new Promise<void>((resolve, reject) => this.writer.write(buffer, error => {
+            if (error) reject(error)
+            else resolve()
         }))
     }
 

@@ -46,13 +46,14 @@ export class Server extends Emitter<Events> {
         }
         const sharedKey = privateDecrypt({ key: privateKey, padding: RSA_PKCS1_PADDING }, encryptedSharedKey)
 
+        client.setEncryption(sharedKey)
+
         if (verify && !await hasJoinedSession(username, serverId)) {
             client.end(new PacketWriter(0x0).writeJSON({
                 translate: "multiplayer.disconnect.unverified_username"
             }))
-            throw new Error("Unverified username")
+            throw new Error("Invalid session")
         }
-        client.setEncryption(sharedKey)
     }
 
     options: Required<ServerOptions>
@@ -118,7 +119,7 @@ export class ServerConnection extends Connection {
         })
     }
 
-    startKeepAlive() {
+    private startKeepAlive() {
         const ids = getPacketIdMap(this.protocol)
 
         let id: bigint | null = null

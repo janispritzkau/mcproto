@@ -42,7 +42,6 @@ export class Client extends Connection {
         })
     }
 
-
     private stateChanged(state: State) {
         if (state == State.Login) {
             const disposeListener = this.onPacket(0x1, this.onEncryptionRequest.bind(this))
