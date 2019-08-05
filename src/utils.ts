@@ -2,7 +2,7 @@ import fetch from "node-fetch"
 import * as querystring from "querystring"
 
 export async function joinSession(accessToken: string, selectedProfile: string, serverId: string) {
-    let response = await fetch("https://sessionserver.mojang.com/session/minecraft/join", {
+    const response = await fetch("https://sessionserver.mojang.com/session/minecraft/join", {
         method: "POST",
         headers: {
             "Content-Type": "application/json"
@@ -15,8 +15,8 @@ export async function joinSession(accessToken: string, selectedProfile: string, 
 }
 
 export async function hasJoinedSession(username: string, serverId: string, ip?: string) {
-    let response = await fetch("https://sessionserver.mojang.com/session/minecraft/hasJoined"
-    + querystring.stringify({ username, serverId, ip }))
+    const response = await fetch("https://sessionserver.mojang.com/session/minecraft/hasJoined?"
+    + querystring.stringify({ username, serverId }))
     return response.ok
 }
 
@@ -41,7 +41,7 @@ export function mcHexDigest(hash: Buffer) {
 }
 
 function performTwosCompliment(buffer: Buffer) {
-    let carry = true, newByte, value
+    let carry = true, newByte: number, value: number
     for (let i = buffer.length - 1; i >= 0; --i) {
         value = buffer.readUInt8(i)
         newByte = ~value & 0xff
