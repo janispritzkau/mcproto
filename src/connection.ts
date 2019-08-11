@@ -39,6 +39,11 @@ export class Connection extends Emitter<Events> {
             this.writer.end()
         })
         socket.on("error", error => this.emit("error", error))
+        socket.on("close", () => {
+            if (!this.writer.writable) return
+            this.emit("end")
+            this.writer.end()
+        })
 
         this.socket.pipe(this.reader)
         this.writer.pipe(this.socket)
