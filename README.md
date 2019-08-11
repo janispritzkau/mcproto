@@ -5,17 +5,17 @@
 
 `mcproto` is a small and lightweight implementation of the Minecraft protocol.
 It aims to be a low-level library that provides the foundations
-for building clients, servers, proxy servers and higher level abstractions.
-This implementation only decodes packets that are related to connection state
-or the login procedure. That makes it a mostly version independent since those
+for building clients, servers, proxies and higher level abstractions.
+This implementation only decodes packets that are related to the connection state
+or login procedure. That makes it mostly version-independent since those
 packets usually don't change from version to version.
 
 ## Features
 
 - Compression
 - Encryption for client and server
-- Helper classes for writing / reading packets.
-- Asynchronous method for reading the next packet.
+- Utility classes for writing / reading packets.
+- Asynchronous `nextPacket` method for reading the next packet _(with id)_.
 - VarLong and 64 bit data types using [BigInts](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/BigInt)
 
 ## Examples
@@ -23,7 +23,7 @@ packets usually don't change from version to version.
 ### Server list ping
 
 ```js
-import { Client, PacketWriter, State } from "mcproto"
+const { Client, PacketWriter, State } = require("mcproto")
 
 const host = "play.hivemc.com", port = 25565
 
@@ -44,6 +44,8 @@ client.end()
 ### Client
 
 ```js
+const { Client, PacketWriter, State } = require("mcproto")
+
 const host = "localhost", port = 25565, username = "Notch"
 
 const client = await Client.connect(host, port)
@@ -83,14 +85,14 @@ More examples can be found in the repository's `examples` folder.
 
 ## Events and errors
 
-`mcproto` uses it's own small event emitter class and provides diferent methods
+`mcproto` uses it's own tiny event emitter class and provides different methods
 to handle packet, socket and error events.
 
 Since a lot of the API is promise based, errors that happen during the lifetime
 a promise will result in the promise being rejected.
 
-Errors that happen outside of async method calls must be handled with an `error`
-event listener to prevent crashes or warnings in the console.
+Errors that happen outside of async method calls should be handled with a `error`
+event handler to prevent crashes or warnings in the console.
 
 ```js
 const listener = client.on("error", console.error)
@@ -101,7 +103,7 @@ listener.dispose()
 client.off("error", console.error)
 ```
 
-The server class allows to return a `Promise` in the client handler and
+The server class does allow to return a `Promise` in the client handler and
 it will forward errors to the server's event emitter.
 
 ```js
@@ -119,6 +121,9 @@ client.on("packet", packet => {
     // make sure to catch errors inside event handlers
 })
 ```
+
+For details about packets and general information about the protocol,
+https://wiki.vg/Protocol is a great reference.
 
 ## Related projects
 
