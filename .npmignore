@@ -1,4 +1,2 @@
-*
-!lib/*.js
-!lib/*.d.ts
-!package*
+/examples
+/src
