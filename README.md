@@ -127,7 +127,7 @@ https://wiki.vg/Protocol is a great reference.
 
 ## Related projects
 
-- [mc-chat-format](https://gitlab.com/janispritzkau/mc-chat-format). Converts
+- [mc-chat-format](https://github.com/janispritzkau/mc-chat-format). Converts
   chat components into raw / ansi formatted text.
+- [mc-status](https://github.com/janispritzkau/mc-server-status) (Server status checker)
 - [mcrevproxy](https://gitlab.com/janispritzkau/mcrevproxy) (Reverse proxy)
-- [mc-status](https://gitlab.com/janispritzkau/mc-status) (Server status checker)
