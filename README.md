@@ -1,7 +1,8 @@
 # Minecraft Protocol
 
-[![npm version](https://img.shields.io/npm/v/mcproto)](https://www.npmjs.com/package/mcproto)
-[![license](https://img.shields.io/github/license/janispritzkau/mcproto)](https://github.com/janispritzkau/mcproto/blob/master/LICENSE)
+[![npm](https://img.shields.io/npm/v/mcproto.svg)](https://www.npmjs.com/package/mcproto)
+[![downloads](https://img.shields.io/npm/dm/mcproto.svg)](https://www.npmjs.com/package/mcproto)
+[![license](https://img.shields.io/npm/l/mcproto.svg)](https://github.com/janispritzkau/mcproto/blob/master/LICENSE)
 
 `mcproto` is a small and lightweight implementation of the Minecraft protocol.
 It aims to be a low-level library that provides the foundations
