@@ -90,13 +90,13 @@ export class PacketReader {
     readPosition() {
         const value = this.readUInt64()
         return this.protocol < 440 ? {
-            x: Number(value >> 38n),
-            y: Number((value >> 26n) & 0xfffn),
-            z: Number(value & 0x3ffffffn)
+            x: Number(value >> 38n) << 6 >> 6,
+            y: Number((value >> 26n) & 0xfffn) << 20 >> 20,
+            z: Number(value & 0x3ffffffn) << 6 >> 6
         } : {
-            x: Number(value >> 38n),
-            y: Number(value & 0xfffn),
-            z: Number((value >> 12n) & 0x3ffffffn)
+            x: Number(value >> 38n) << 6 >> 6,
+            y: Number(value & 0xfffn) << 20 >> 20,
+            z: Number((value >> 12n) & 0x3ffffffn) << 6 >> 6
         }
     }
 }

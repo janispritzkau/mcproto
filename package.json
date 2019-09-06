@@ -1,9 +1,9 @@
 {
   "name": "mcproto",
-  "version": "0.7.6",
+  "version": "0.7.7",
   "description": "Small Minecraft protocol implementation",
-  "main": "lib",
-  "types": "lib",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/janispritzkau/mcproto.git"
