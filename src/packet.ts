@@ -3,8 +3,8 @@ import { writeVarInt, decodeVarInt, decodeVarLong, writeVarLong } from "./varint
 export type Packet = PacketReader | PacketWriter | Buffer
 
 export const getPacketIdMap = (v: number) => ({
-    keepAliveC: v < 477 ? v < 393 ? 0x1f : 0x21: 0x20,
-    keepAliveS: v < 477 ? v < 393 ? 0xb : 0xe: 0xf
+    keepAliveC: v < 477 ? v < 393 ? 0x1f : 0x21 : 0x20,
+    keepAliveS: v < 477 ? v < 393 ? 0xb : 0xe : 0xf
 })
 
 export class PacketReader {
@@ -89,15 +89,16 @@ export class PacketReader {
 
     readPosition() {
         const value = this.readUInt64()
-        return this.protocol < 440 ? {
-            x: Number(value >> 38n) << 6 >> 6,
-            y: Number((value >> 26n) & 0xfffn) << 20 >> 20,
-            z: Number(value & 0x3ffffffn) << 6 >> 6
-        } : {
-            x: Number(value >> 38n) << 6 >> 6,
-            y: Number(value & 0xfffn) << 20 >> 20,
-            z: Number((value >> 12n) & 0x3ffffffn) << 6 >> 6
-        }
+        return this.protocol < 440
+            ? {
+                x: Number(value >> 38n) << 6 >> 6,
+                y: Number((value >> 26n) & 0xfffn) << 20 >> 20,
+                z: Number(value & 0x3ffffffn) << 6 >> 6
+            } : {
+                x: Number(value >> 38n) << 6 >> 6,
+                y: Number(value & 0xfffn) << 20 >> 20,
+                z: Number((value >> 12n) & 0x3ffffffn) << 6 >> 6
+            }
     }
 }
 
@@ -208,10 +209,13 @@ export class PacketWriter {
         return this
     }
 
-    writePosition(x: number, y: number, z: number) {
+    writePosition(x: number, y: number, z: number): PacketWriter
+    writePosition(pos: { x: number, y: number, z: number }): PacketWriter
+    writePosition(x: number | { x: number, y: number, z: number }, y?: number, z?: number) {
+        if (x instanceof Object) y = x.y, z = x.z, x = x.x
         return this.writeUInt64(this.protocol < 440
-            ? (BigInt(x & 0x3ffffff) << 38n) | (BigInt(y & 0xfff) << 26n) | BigInt(z & 0x3ffffff)
-            : (BigInt(x & 0x3ffffff) << 38n) | (BigInt(z & 0x3ffffff) << 12n) | BigInt(y & 0xfff)
+            ? (BigInt(x & 0x3ffffff) << 38n) | (BigInt(y! & 0xfff) << 26n) | BigInt(z! & 0x3ffffff)
+            : (BigInt(x & 0x3ffffff) << 38n) | (BigInt(z! & 0x3ffffff) << 12n) | BigInt(y! & 0xfff)
         )
     }
 
