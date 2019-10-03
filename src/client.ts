@@ -26,7 +26,9 @@ export class Client extends Connection {
     }
 
     async connect(host: string, port?: number) {
-        if (!port) port = await new Promise<number>(resolve => {
+        const isIp = host.includes(":") || /^([0-9]+\.){3}[0-9]+$/.test(host)
+        const isDomain = !isIp && /^(\w+\.)+(\w+)?$/i.test(host)
+        if (isDomain && !port) port = await new Promise<number>(resolve => {
             dns.resolveSrv("_minecraft._tcp." + host, (err, addrs) => {
                 if (err || addrs.length == 0) return resolve(25565)
                 host = addrs[0].name
@@ -35,7 +37,7 @@ export class Client extends Connection {
         })
         return new Promise<this>((resolve, reject) => {
             this.socket.once("error", reject)
-            this.socket.connect({ host, port: port! }, () => {
+            this.socket.connect({ host, port: port || 25565 }, () => {
                 this.socket.removeListener("error", reject)
                 resolve(this)
             })
