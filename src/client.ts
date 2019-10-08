@@ -9,10 +9,20 @@ export interface ClientOptions {
     accessToken?: string
     profile?: string
     keepAlive?: boolean
+    /** @default 120000 ms */
+    timeout?: number
+    /** @default 10000 ms */
+    connectTimeout?: number
+}
+
+const defaultOptions: Partial<ClientOptions> = {
+    keepAlive: true,
+    connectTimeout: 10000,
+    timeout: 120000
 }
 
 export class Client extends Connection {
-    static connect(host: string, port?: number, options?: ClientOptions) {
+    static connect(host: string, port?: number | null, options?: ClientOptions) {
         const client = new Client(options)
         return client.connect(host, port)
     }
@@ -21,11 +31,12 @@ export class Client extends Connection {
 
     constructor(options?: ClientOptions) {
         super(new Socket, false)
-        this.options = { keepAlive: true, ...options }
+        this.options = { ...defaultOptions, ...options }
+        this.socket.on("timeout", () => this.socket.destroy())
         this.on("changeState", this.stateChanged.bind(this))
     }
 
-    async connect(host: string, port?: number) {
+    async connect(host: string, port?: number | null) {
         const isIp = host.includes(":") || /^([0-9]+\.){3}[0-9]+$/.test(host)
         const isDomain = !isIp && /^(\w+\.)+(\w+)?$/i.test(host)
         if (isDomain && !port) port = await new Promise<number>(resolve => {
@@ -37,8 +48,13 @@ export class Client extends Connection {
         })
         return new Promise<this>((resolve, reject) => {
             this.socket.once("error", reject)
+            this.socket.setTimeout(this.options.connectTimeout || 0, () => {
+                this.socket.destroy()
+                reject(new Error("Timeout"))
+            })
             this.socket.connect({ host, port: port || 25565 }, () => {
                 this.socket.removeListener("error", reject)
+                this.socket.setTimeout(this.options.timeout || 0)
                 resolve(this)
             })
         })
