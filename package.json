@@ -1,6 +1,6 @@
 {
   "name": "mcproto",
-  "version": "0.7.10",
+  "version": "0.7.11",
   "description": "Small Minecraft protocol implementation",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

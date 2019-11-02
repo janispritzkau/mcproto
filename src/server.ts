@@ -106,6 +106,12 @@ export class Server extends Emitter<Events> {
             })
         })
     }
+
+    close() {
+        return new Promise<void>((resolve, reject) => {
+            this.server.close(error => error ? reject(error) : resolve())
+        })
+    }
 }
 
 export class ServerConnection extends Connection {
