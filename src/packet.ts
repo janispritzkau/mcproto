@@ -2,9 +2,13 @@ import { writeVarInt, decodeVarInt, decodeVarLong, writeVarLong } from "./varint
 
 export type Packet = PacketReader | PacketWriter | Buffer
 
+const V_1_15 = 550 // 19w34a
+const V_1_14 = 477
+const V_1_13 = 393
+
 export const getPacketIdMap = (v: number) => ({
-    keepAliveC: v < 477 ? v < 393 ? 0x1f : 0x21 : 0x20,
-    keepAliveS: v < 477 ? v < 393 ? 0xb : 0xe : 0xf
+    keepAliveC: v < V_1_15 ? v < V_1_14 ? v < V_1_13 ? 0x1f : 0x21 : 0x20 : 0x21,
+    keepAliveS: v < V_1_14 ? v < V_1_13 ? 0xb : 0xe : 0xf
 })
 
 export class PacketReader {
