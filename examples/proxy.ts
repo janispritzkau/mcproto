@@ -41,12 +41,12 @@ new Server({ keepAlive: false }, async conn => {
     }
 
     conn.on("packet", packet => {
-        console.log(`[S] ${packet.id}`)
+        console.log(`[S] 0x${packet.id.toString(16)}`)
         client.send(packet)
     })
 
     client.on("packet", packet => {
-        console.log(`[C] ${packet.id}`)
+        console.log(`[C] 0x${packet.id.toString(16)}`)
         conn.send(packet)
     })
 }).listen(25565)
