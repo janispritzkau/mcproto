@@ -2,7 +2,7 @@ import { writeVarInt, decodeVarInt, decodeVarLong, writeVarLong } from "./varint
 
 export type Packet = PacketReader | PacketWriter | Buffer
 
-const V_1_15 = 550 // 19w34a
+const V_1_15 = 573
 const V_1_14 = 477
 const V_1_13 = 393
 
