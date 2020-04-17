@@ -85,7 +85,7 @@ export class Client extends Connection {
             .digest())
 
         if (!await joinSession(this.options.accessToken!, this.options.profile!, hashedServerId)) {
-            this.emit("error", new Error("Invalid access token"))
+            this.emitError(new Error("Invalid access token"))
         }
 
         const key = mcPublicKeyToPem(publicKey)

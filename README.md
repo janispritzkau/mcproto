@@ -93,7 +93,7 @@ Since a lot of the API is promise based, errors that happen during the lifetime
 a promise will result in the promise being rejected.
 
 Errors that happen outside of async method calls should be handled with a `error`
-event handler to prevent crashes or warnings in the console.
+event handler on the connection instance.
 
 ```js
 const listener = client.on("error", console.error)

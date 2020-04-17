@@ -34,11 +34,11 @@ export class Connection extends Emitter<Events> {
     constructor(public socket: Socket, public isServer = false) {
         super()
         socket.setNoDelay(true)
-        socket.on("end", () => {
+        socket.on("close", () => {
             this.emit("end")
             this.writer.end()
         })
-        socket.on("error", error => this.emit("error", error))
+        socket.on("error", error => this.emitError(error))
         socket.on("close", () => {
             if (!this.writer.writable) return
             this.emit("end")
@@ -48,6 +48,7 @@ export class Connection extends Emitter<Events> {
         this.socket.pipe(this.reader)
         this.writer.pipe(this.socket)
 
+        this.reader.on("error", error => this.socket.destroy(error))
         this.reader.on("data", packet => this.packetReceived(packet))
         this.reader.on("close", () => this.writer.end())
     }
@@ -148,8 +149,9 @@ export class Connection extends Emitter<Events> {
     }
 
     private setState(state: number) {
-        if (this.state != state) this.emit("changeState", state)
+        const oldState = this.state
         this.state = state
+        if (oldState != state) this.emit("changeState", state)
     }
 
     private packetReceived(buffer: Buffer) {
@@ -172,6 +174,12 @@ export class Connection extends Emitter<Events> {
         if (this.state == State.Login) switch (packet.id) {
             case 0x2: this.setState(State.Play); break
             case 0x3: this.setCompression(packet.readVarInt()); break
+        }
+    }
+
+    protected emitError(error: Error) {
+        if (!this.emit("error", error)) {
+            console.error("Unhandled connection error", error)
         }
     }
 }
