@@ -1,4 +1,5 @@
 import { writeVarInt, decodeVarInt, decodeVarLong, writeVarLong } from "./varint"
+import * as nbt from "nbt-ts"
 
 export type Packet = PacketReader | PacketWriter | Buffer
 
@@ -103,6 +104,12 @@ export class PacketReader {
                 y: Number(value & 0xfffn) << 20 >> 20,
                 z: Number((value >> 12n) & 0x3ffffffn) << 6 >> 6
             }
+    }
+
+    readNBT(options?: nbt.DecodeOptions) {
+        const tag = nbt.decode(this.buffer.slice(this.offset), options)
+        this.offset += tag.length
+        return tag
     }
 }
 
@@ -221,6 +228,10 @@ export class PacketWriter {
             ? (BigInt(x & 0x3ffffff) << 38n) | (BigInt(y! & 0xfff) << 26n) | BigInt(z! & 0x3ffffff)
             : (BigInt(x & 0x3ffffff) << 38n) | (BigInt(z! & 0x3ffffff) << 12n) | BigInt(y! & 0xfff)
         )
+    }
+
+    writeNBT(name: string | null, tag: nbt.Tag | null) {
+        return this.write(nbt.encode(name, tag))
     }
 
     encode() {
