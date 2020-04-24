@@ -12,6 +12,12 @@ export const getPacketIdMap = (v: number) => ({
     keepAliveS: v < V_1_14 ? v < V_1_13 ? 0xb : 0xe : 0xf
 })
 
+export interface Position {
+    x: number
+    y: number
+    z: number
+}
+
 export class PacketReader {
     id: number
     offset = 0
@@ -92,7 +98,7 @@ export class PacketReader {
         return (this.offset = offset, result)
     }
 
-    readPosition() {
+    readPosition(): Position {
         const value = this.readUInt64()
         return this.protocol < 440
             ? {
@@ -221,8 +227,8 @@ export class PacketWriter {
     }
 
     writePosition(x: number, y: number, z: number): PacketWriter
-    writePosition(pos: { x: number, y: number, z: number }): PacketWriter
-    writePosition(x: number | { x: number, y: number, z: number }, y?: number, z?: number) {
+    writePosition(pos: Position): PacketWriter
+    writePosition(x: number | Position, y?: number, z?: number) {
         if (x instanceof Object) y = x.y, z = x.z, x = x.x
         return this.writeUInt64(this.protocol < 440
             ? (BigInt(x & 0x3ffffff) << 38n) | (BigInt(y! & 0xfff) << 26n) | BigInt(z! & 0x3ffffff)
