@@ -47,13 +47,13 @@ export class Client extends Connection {
             })
         })
         return new Promise<this>((resolve, reject) => {
-            this.socket.once("error", reject)
+            this.once("error", reject)
             this.socket.setTimeout(this.options.connectTimeout || 0, () => {
                 this.socket.destroy()
-                reject(new Error("Timeout"))
+                reject(new Error("Connection timed out"))
             })
             this.socket.connect({ host, port: port || 25565 }, () => {
-                this.socket.removeListener("error", reject)
+                this.removeListener("error", reject)
                 this.socket.setTimeout(this.options.timeout || 0)
                 resolve(this)
             })
