@@ -9,7 +9,7 @@ const V_1_14 = 477
 const V_1_13 = 393
 
 export const getPacketIdMap = (v: number) => ({
-    keepAliveC: v < V_1_15 ? v < V_1_14 ? v < V_1_13 ? 0x1f : 0x21 : 0x20 : 0x21,
+    keepAliveC: v < V_1_16 ? v < V_1_15 ? v < V_1_14 ? v < V_1_13 ? 0x1f : 0x21 : 0x20 : 0x21 : 0x1f,
     keepAliveS: v < V_1_16 ? v < V_1_14 ? v < V_1_13 ? 0xb : 0xe : 0xf : 0x10
 })
 
