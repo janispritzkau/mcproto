@@ -74,7 +74,7 @@ export class Connection extends Emitter<Events> {
     }
 
     async resume() {
-        await new Promise(res => this.reader.flush(res))
+        await new Promise<void>(res => this.reader.flush(res))
         for (const packet of this.packets) {
             await Promise.resolve()
             if (!this.socket.writable) break
@@ -96,10 +96,12 @@ export class Connection extends Emitter<Events> {
             const listener = this.on("packet", packet => {
                 if (id == null || packet.id == id) {
                     resolve(packet)
-                    listener.dispose(), endL.dispose()
+                    listener.dispose()
+                    endL.dispose()
                 } else if (expectNext && id != null && packet.id != id) {
                     reject(new Error(`Expected packet with id ${id} but got ${packet.id}`))
-                    listener.dispose(), endL.dispose()
+                    listener.dispose()
+                    endL.dispose()
                 }
             })
         })
