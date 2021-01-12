@@ -3,14 +3,9 @@ import * as nbt from "nbt-ts"
 
 export type Packet = PacketReader | PacketWriter | Buffer
 
-const V_1_16_3 = 753
-const V_1_15 = 573
-const V_1_14 = 477
-const V_1_13 = 393
-
 export const getPacketIdMap = (v: number) => ({
-    keepAliveC: v < V_1_16_3 ? v < V_1_15 ? v < V_1_14 ? v < V_1_13 ? 0x1f : 0x21 : 0x20 : 0x21 : 0x1f,
-    keepAliveS: v < V_1_16_3 ? v < V_1_14 ? v < V_1_13 ? 0xb : 0xe : 0xf : 0x10
+    keepAliveC: v < 751 ? v < 573 ? v < 477 ? v < 393 ? v < 107 ? 0x0 : 0x1f : 0x21 : 0x20 : 0x21 : 0x1f,
+    keepAliveS: v < 735 ? v < 477 ? v < 393 ? v < 107 ? 0x0 : 0xb : 0xe : 0xf : 0x10
 })
 
 export interface Position {
