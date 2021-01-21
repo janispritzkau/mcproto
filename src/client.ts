@@ -2,13 +2,12 @@ import { randomBytes, createHash, publicEncrypt } from "crypto"
 import { RSA_PKCS1_PADDING } from "constants"
 import { Socket } from "net"
 import * as dns from "dns"
-import { Connection, State, PacketWriter, PacketReader, getPacketIdMap } from "."
+import { Connection, State, PacketWriter, PacketReader } from "."
 import { mcHexDigest, joinSession, mcPublicKeyToPem } from "./utils"
 
 export interface ClientOptions {
     accessToken?: string
     profile?: string
-    keepAlive?: boolean
     /** @default 120000 ms */
     timeout?: number
     /** @default 10000 ms */
@@ -16,7 +15,6 @@ export interface ClientOptions {
 }
 
 const defaultOptions: Partial<ClientOptions> = {
-    keepAlive: true,
     connectTimeout: 10000,
     timeout: 120000
 }
@@ -64,11 +62,6 @@ export class Client extends Connection {
         if (state == State.Login) {
             const disposeListener = this.onPacket(0x1, this.onEncryptionRequest.bind(this))
             this.once("changeState", disposeListener.dispose)
-        } else if (state == State.Play && this.options.keepAlive) {
-            const ids = getPacketIdMap(this.protocol)
-            this.onPacket(ids.keepAliveC, packet => {
-                this.send(new PacketWriter(ids.keepAliveS).writeInt64(packet.readInt64()))
-            })
         }
     }
 

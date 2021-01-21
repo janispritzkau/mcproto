@@ -1,21 +1,16 @@
 import * as net from "net"
 import { Emitter } from "./events"
 import { Connection } from "."
-import { PacketWriter, getPacketIdMap } from "./packet"
-import { generateKeyPairSync, RSAKeyPairOptions, randomBytes, privateDecrypt } from "crypto";
-import { hasJoinedSession } from "./utils";
-import { RSA_PKCS1_PADDING } from "constants";
-import { State } from "./connection";
+import { PacketWriter } from "./packet"
+import { generateKeyPairSync, RSAKeyPairOptions, randomBytes, privateDecrypt } from "crypto"
+import { hasJoinedSession } from "./utils"
+import { RSA_PKCS1_PADDING } from "constants"
 
 export interface ServerOptions {
-    keepAlive?: boolean
-    keepAliveInterval?: number
     generateKeyPair?: boolean
 }
 
 const defaultOptions: Required<ServerOptions> = {
-    keepAlive: true,
-    keepAliveInterval: 10000,
     generateKeyPair: true
 }
 
@@ -117,31 +112,6 @@ export class Server extends Emitter<Events> {
 export class ServerConnection extends Connection {
     constructor(socket: net.Socket, public server: Server) {
         super(socket, true)
-
-        this.on("changeState", state => {
-            if (state == State.Play && server.options.keepAlive) {
-                this.startKeepAlive()
-            }
-        })
-    }
-
-    private startKeepAlive() {
-        const ids = getPacketIdMap(this.protocol)
-
-        let id: bigint | null = null
-        const keepAliveInterval = setInterval(() => {
-            if (id) {
-                this.end(new PacketWriter(0x0).writeJSON({ text: "Timed out" }))
-            }
-            id = BigInt(Date.now())
-            this.send(new PacketWriter(ids.keepAliveC).writeUInt64(id))
-        }, this.server.options.keepAliveInterval)
-
-        this.onPacket(ids.keepAliveS, packet => {
-            if (packet.readUInt64() == id) id = null
-        })
-
-        this.on("end", () => clearInterval(keepAliveInterval))
     }
 
     encrypt(username: string, verify = true) {

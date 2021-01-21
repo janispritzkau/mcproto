@@ -3,11 +3,6 @@ import * as nbt from "nbt-ts"
 
 export type Packet = PacketReader | PacketWriter | Buffer
 
-export const getPacketIdMap = (v: number) => ({
-    keepAliveC: v < 751 ? v < 573 ? v < 477 ? v < 393 ? v < 107 ? 0x0 : 0x1f : 0x21 : 0x20 : 0x21 : 0x1f,
-    keepAliveS: v < 735 ? v < 477 ? v < 393 ? v < 107 ? 0x0 : 0xb : 0xe : 0xf : 0x10
-})
-
 export interface Position {
     x: number
     y: number
