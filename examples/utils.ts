@@ -3,21 +3,23 @@ import { homedir } from "os"
 import * as path from "path"
 
 export function getProfile() {
-    let mcPath: string
-
-    if (process.platform == "win32") {
-        mcPath = path.join(homedir(), "AppData/Roaming/.minecraft")
-    } else if (process.platform == "darwin") {
-        mcPath = path.join(homedir(), "Library/Application Support/minecraft")
-    } else {
-        mcPath = path.join(homedir(), ".minecraft")
+    if (process.env.PROFILE) return {
+        accessToken: process.env.ACCESS_TOKEN!,
+        profile: process.env.PROFILE!,
+        name: process.env.DISPLAY_NAME!
     }
 
-    const config = JSON.parse(readFileSync(path.join(mcPath, "launcher_profiles.json"), "utf-8"))
-    const { accessToken, profiles } = config.authenticationDatabase[config.selectedUser.account]
-    const { profile } = config.selectedUser, { displayName } = profiles[profile]
+    const mcPath = process.platform == "win32"
+        ? path.join(homedir(), "AppData/Roaming/.minecraft")
+        : process.platform == "darwin"
+            ? path.join(homedir(), "Library/Application Support/minecraft")
+            : path.join(homedir(), ".minecraft")
 
-    return {
-        accessToken, profile, displayName
-    }
+    const launcherAccounts = JSON.parse(readFileSync(path.join(mcPath, "launcher_accounts.json"), "utf-8"))
+
+    const account = launcherAccounts.accounts[launcherAccounts.activeAccountLocalId]
+    if (!account) throw new Error("No account found")
+
+    const { accessToken, minecraftProfile: { id, name } } = account
+    return { accessToken, profile: id, name }
 }

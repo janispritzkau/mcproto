@@ -4,19 +4,18 @@ import { getProfile } from "./utils"
 const host = process.argv[2] || "localhost"
 const port = +process.argv[3] || (process.argv[2] ? 25565 : 25566)
 
-const { accessToken, displayName, profile } = getProfile()
+const { accessToken, profile, name } = getProfile()
 
-new Server({ keepAlive: false }, async conn => {
+new Server(async conn => {
     conn.on("error", console.error)
 
     const protocol = (await conn.nextPacket(0x0)).readVarInt()
     conn.pause()
 
     let client: Client
-    try { client = await Client.connect(host, port, {
-        accessToken, profile, keepAlive: false
-    }) }
-    catch (error) {
+    try {
+        client = await Client.connect(host, port, { accessToken, profile })
+    } catch (error) {
         return conn.end()
     }
 
@@ -33,7 +32,7 @@ new Server({ keepAlive: false }, async conn => {
     const packet = await conn.nextPacket(0x0)
 
     if (conn.state == State.Login) {
-        client.send(new PacketWriter(0x0).writeString(displayName))
+        client.send(new PacketWriter(0x0).writeString(name))
         // wait for login success
         conn.send(await client.nextPacket(0x2, false))
     } else if (conn.state == State.Status) {
