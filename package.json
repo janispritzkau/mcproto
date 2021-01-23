@@ -1,6 +1,6 @@
 {
   "name": "mcproto",
-  "version": "0.8.5",
+  "version": "0.9.0",
   "description": "Small Minecraft protocol implementation",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -20,10 +20,10 @@
   "author": "Janis Pritzkau <janispritzkau@gmail.com>",
   "license": "MIT",
   "devDependencies": {
-    "@types/node": "^14.14.10",
-    "@types/node-fetch": "^2.5.7",
+    "@types/node": "^14.14.22",
+    "@types/node-fetch": "^2.5.8",
     "mc-chat-format": "^1.2.1",
-    "typescript": "^4.0.5"
+    "typescript": "^4.1.3"
   },
   "dependencies": {
     "nbt-ts": "^1.3.3",
